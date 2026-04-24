@@ -1,0 +1,19 @@
+{
+  "mode": "auto",
+  "local": {
+    "url": "http://localhost:11434",
+    "model": "qwen2.5:7b"
+  },
+  "api": {
+    "provider": "openai",
+    "model": "gpt-4o-mini"
+  },
+  "rules": {
+    "code_threshold": true,
+    "length_threshold": 500,
+    "has_attachment": "api",
+    "agent_mode": "hermes"
+  },
+  "monthly_budget_usd": 5.0,
+  "monthly_used_usd": 0.0
+}

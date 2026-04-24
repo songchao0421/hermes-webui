@@ -1,0 +1,25 @@
+# Hermes WebUI - Configuration（马鞍配置文件）
+# Copy this to ~/.hermes-webui/config.yaml and customize
+
+# Hermes home directory (auto-detected if not set)
+# hermes_home: ~/.hermes
+
+# Server settings
+server:
+  host: 0.0.0.0
+  port: 8080
+
+# Ollama settings (auto-read from Hermes config if not set)
+# ollama_url: http://localhost:11434
+
+# Default model (auto-read from Hermes config if not set)
+# default_model: gemma3:12b
+
+# Agent personalization
+# These can also be set via the WebUI onboarding wizard or Settings page.
+# The WebUI stores persona data in ~/.hermes-webui/persona.json
+# persona:
+#   agent_name: "Atlas"        # Any characters, emoji supported
+#   agent_subtitle: "Local Intelligence"
+#   theme_preset: cyan         # cyan | purple | green | amber | rose | custom
+#   custom_accent: "#00daf3"   # Only used when theme_preset is "custom"

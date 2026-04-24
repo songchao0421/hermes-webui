@@ -1,0 +1,22 @@
+{
+  "name": "hermes-webui",
+  "version": "2.0.0",
+  "description": "Hermes WebUI - Agent graphical cockpit (SDK direct-connect, no subprocess)",
+  "main": "index.js",
+  "directories": {
+    "doc": "docs",
+    "test": "tests"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "build:css": "npx tailwindcss -i frontend/css/input.css -o frontend/assets/css/tailwind.css",
+    "watch:css": "npx tailwindcss -i frontend/css/input.css -o frontend/assets/css/tailwind.css --watch"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@tailwindcss/cli": "^4.2.4",
+    "tailwindcss": "^4.2.4"
+  }
+}

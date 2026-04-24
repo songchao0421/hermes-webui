@@ -1,0 +1,95 @@
+/**
+ * Hermes WebUI — Tailwind CSS v4 entry point
+ *
+ * Build: npx tailwindcss -i frontend/css/input.css -o frontend/assets/css/tailwind.css
+ * Watch: npx tailwindcss -i frontend/css/input.css -o frontend/assets/css/tailwind.css --watch
+ */
+
+/* Tell Tailwind v4 where to scan for class names */
+@source "../index.html";
+
+/* Also scan JS files for dynamically created class names */
+@source "./assets/js/";
+
+/* Import Tailwind v4 */
+@import "tailwindcss";
+
+/* ── Custom theme ────────────────────────────────────────────── */
+@theme {
+  /* ── Colors (M3-inspired amber/cyan dark theme) ───────────── */
+  --color-on-primary-container: #623f00;
+  --color-secondary: #c7c5cc;
+  --color-error: #ffb4ab;
+  --color-on-primary-fixed-variant: #633f00;
+  --color-on-tertiary: #003350;
+  --color-on-tertiary-fixed-variant: #004b72;
+  --color-tertiary-fixed-dim: #90cdff;
+  --color-secondary-fixed-dim: #c7c5cc;
+  --color-inverse-primary: #825500;
+  --color-surface-container-low: #1b1b1e;
+  --color-outline: #9d8e7d;
+  --color-surface-container-high: #2a2a2d;
+  --color-on-surface: #e4e1e6;
+  --color-on-secondary: #303035;
+  --color-on-error: #690005;
+  --color-tertiary: #a5d5ff;
+  --color-surface-dim: #131316;
+  --color-surface-bright: #39393c;
+  --color-surface-container-highest: #353438;
+  --color-on-error-container: #ffdad6;
+  --color-surface-variant: #353438;
+  --color-background: #131316;
+  --color-primary-fixed: #ffddb4;
+  --color-surface-container: #1f1f22;
+  --color-on-surface-variant: #d5c4b1;
+  --color-surface-container-lowest: #0e0e11;
+  --color-primary-container: #e8a849;
+  --color-tertiary-container: #74bbf3;
+  --color-on-tertiary-container: #004a71;
+  --color-inverse-on-surface: #303033;
+  --color-secondary-fixed: #e4e1e8;
+  --color-on-primary: #452b00;
+  --color-surface-tint: #fdba59;
+  --color-on-secondary-fixed-variant: #46464b;
+  --color-outline-variant: #514536;
+  --color-on-tertiary-fixed: #001e31;
+  --color-on-primary-fixed: #291800;
+  --color-error-container: #93000a;
+  --color-inverse-surface: #e4e1e6;
+  --color-primary: #ffc676;
+  --color-surface: #131316;
+  --color-on-secondary-container: #bdbbc1;
+  --color-primary-fixed-dim: #fdba59;
+  --color-on-secondary-fixed: #1b1b20;
+  --color-on-background: #e4e1e6;
+  --color-tertiary-fixed: #cce5ff;
+  --color-secondary-container: #4b4b50;
+
+  /* ── Border radius ────────────────────────────────────────── */
+  --radius-lg: 0.5rem;
+  --radius-xl: 0.75rem;
+  --radius-2xl: 1rem;
+  --radius-3xl: 1.5rem;
+
+  /* ── Font families ────────────────────────────────────────── */
+  --font-headline: "Plus Jakarta Sans", "Microsoft YaHei", "Noto Sans SC", "PingFang SC", sans-serif;
+  --font-body: "Inter", "Microsoft YaHei", "Noto Sans SC", "PingFang SC", sans-serif;
+  --font-label: "Inter", "Microsoft YaHei", "Noto Sans SC", "PingFang SC", sans-serif;
+  --font-mono: "JetBrains Mono", "Microsoft YaHei", "Noto Sans SC", "PingFang SC", monospace;
+
+  /* ── Animations ──────────────────────────────────────────── */
+  --animate-voice-wave: voice-wave 1s ease-in-out infinite;
+  --animate-voice-wave-slim: voice-wave-slim 0.6s ease-in-out infinite;
+}
+
+@keyframes voice-wave {
+  0%, 100% { height: 8px; }
+  25% { height: 28px; }
+  50% { height: 16px; }
+  75% { height: 36px; }
+}
+
+@keyframes voice-wave-slim {
+  0%, 100% { height: 6px; }
+  50% { height: 22px; }
+}

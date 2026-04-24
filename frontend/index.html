@@ -1,0 +1,572 @@
+<!DOCTYPE html>
+<html class="dark" lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Hermes WebUI</title>
+<!-- Self-hosted CSS (no CDN dependencies) -->
+<link rel="stylesheet" href="/assets/css/tailwind.css">
+<link rel="stylesheet" href="/assets/css/custom.css">
+<link rel="stylesheet" href="/assets/css/fonts.css">
+</head>
+<body class="bg-surface text-on-surface font-body min-h-screen overflow-x-hidden">
+<div class="grain-overlay"></div>
+
+<!-- ===================== SIDEBAR (Chat Stitch Design) ===================== -->
+<aside id="sideNav" class="fixed left-0 top-0 bottom-0 flex flex-col p-6 w-[256px] h-screen border-r border-[#514536] border-dashed bg-[#131316] z-50">
+    <!-- Agent Avatar & Name -->
+    <div class="flex flex-col items-center gap-3 mb-8">
+        <div class="relative group">
+            <div class="absolute -inset-1 bg-primary rounded-2xl blur opacity-20 group-hover:opacity-40 transition duration-1000"></div>
+            <div id="navAvatar" class="relative w-20 h-20 rounded-2xl bg-surface-container-highest flex items-center justify-center overflow-hidden object-cover" style="box-shadow: 0 0 0 2px var(--theme-primary);">
+                <span class="material-symbols-outlined text-primary text-3xl">smart_toy</span>
+            </div>
+        </div>
+        <div class="text-center">
+            <h1 id="navAgentName" class="font-headline text-2xl font-bold tracking-tighter uppercase agent-name-display" style="color: var(--theme-primary);">My Agent</h1>
+            <p id="navAgentSub" class="text-[10px] text-on-surface-variant/50 uppercase tracking-widest mt-0.5 truncate max-w-[180px]"></p>
+        </div>
+    </div>
+
+    <!-- Navigation -->
+    <nav class="space-y-2 font-['Plus_Jakarta_Sans'] text-sm tracking-tight">
+        <button class="nav-item active w-full flex items-center gap-3 px-4 py-3 rounded-xl text-[#e8a849] font-bold" data-tab="chat" onclick="switchTab('chat')">
+            <span class="material-symbols-outlined text-[20px]">chat</span>
+            Chat
+        </button>
+        <button class="nav-item w-full flex items-center gap-3 px-4 py-3 rounded-xl text-[#d5c4b1] opacity-70" data-tab="skills" onclick="switchTab('skills')">
+            <span class="material-symbols-outlined text-[20px]">bolt</span>
+            Skills
+        </button>
+        <button class="nav-item w-full flex items-center gap-3 px-4 py-3 rounded-xl text-[#d5c4b1] opacity-70" data-tab="memory" onclick="switchTab('memory')">
+            <span class="material-symbols-outlined text-[20px]">database</span>
+            Memory
+        </button>
+    </nav>
+
+    <!-- New Chat Button -->
+    <div class="pt-8 pb-4">
+        <button onclick="newSession()" class="w-full flex items-center justify-center gap-2 bg-primary-container text-on-primary font-bold py-3 px-4 rounded-xl active:scale-95 duration-150 shadow-lg shadow-primary/10 shadow-[inset_0px_1px_0px_rgba(255,255,255,0.1)]">
+            <span class="material-symbols-outlined text-[20px]">add</span>
+            New Chat
+        </button>
+    </div>
+
+    <!-- Session Search -->
+      <div class="relative mb-1">
+          <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-[16px] text-on-surface-variant/40 pointer-events-none">search</span>
+          <input id="sessionSearch" type="text" placeholder="搜索会话..." oninput="filterSessions(this.value)"
+              class="w-full bg-surface-container-high/50 text-xs text-on-surface pl-8 pr-3 py-2 rounded-lg border border-outline-variant/20 focus:outline-none focus:border-outline-variant/60 placeholder:text-on-surface-variant/30 transition-colors">
+      </div>
+      <!-- Recent Sessions -->
+      <div id="sessionList" class="mt-2 space-y-1 overflow-y-auto flex-1 min-h-0 custom-scrollbar"></div>
+
+    <!-- Bottom: Settings + Support -->
+    <div class="mt-auto space-y-1 font-['Plus_Jakarta_Sans'] text-sm tracking-tight border-t border-outline-variant pt-4">
+        <button class="nav-item w-full flex items-center gap-3 px-4 py-3 rounded-xl text-[#d5c4b1] opacity-70" data-tab="settings" onclick="switchTab('settings')">
+            <span class="material-symbols-outlined text-[20px]">settings</span>
+            Settings
+        </button>
+        <button class="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-[#d5c4b1] opacity-70 hover:bg-[#1f1f22] transition-colors" onclick="showSupportModal()">
+            <span class="material-symbols-outlined text-[20px]">help</span>
+            Support
+        </button>
+    </div>
+</aside>
+
+<!-- Mobile overlay (closes nav when tapping outside) -->
+  <div id="sideNavOverlay" onclick="toggleMobileNav()"></div>
+
+  <!-- ===================== TOP APP BAR ===================== -->
+<header id="topBar" class="fixed top-0 right-0 left-[256px] h-[56px] flex justify-between items-center px-8 z-40 bg-[#131316]/90 backdrop-blur-sm border-b border-[#514536] border-dashed">
+    <div class="flex items-center gap-4">
+        <!-- Mobile hamburger button (hidden on desktop via CSS) -->
+          <button id="mobileMenuBtn" onclick="toggleMobileNav()" title="打开菜单"
+              class="items-center justify-center w-9 h-9 rounded-lg bg-surface-container-high border border-outline-variant/30 text-on-surface-variant hover:text-primary transition-colors"
+              style="display:none;">
+              <span class="material-symbols-outlined text-[20px]">menu</span>
+          </button>
+          <!-- Online Status -->
+        <div class="flex items-center gap-2">
+            <span id="statusDot" class="w-2 h-2 rounded-full bg-outline"></span>
+            <span id="statusText" class="font-headline font-bold text-[10px] uppercase tracking-widest text-outline">Connecting...</span>
+        </div>
+        <!-- Model Status Indicator -->
+        <div class="flex items-center gap-2 ml-2">
+            <span id="modelStatusDot" class="w-2 h-2 rounded-full bg-outline" title="模型状态未知"></span>
+            <span id="modelStatusText" class="font-headline font-bold text-[9px] uppercase tracking-widest text-outline">—</span>
+        </div>
+        <div class="h-4 w-[1.5px] bg-outline-variant/30"></div>
+    </div>
+    <div class="flex items-center gap-6">
+    </div>
+</header>
+
+<!-- ===================== TAB: CHAT ===================== -->
+<main id="tabChat" class="ml-[256px] pt-[56px] pb-[140px] h-screen overflow-y-auto custom-scrollbar flex flex-col items-center">
+    <div id="chatContainer" class="w-full max-w-[900px] px-8 py-12 space-y-12 flex-grow">
+        <div id="emptyState" class="flex flex-col items-center justify-start pt-24 text-on-surface-variant/30">
+        </div>
+    </div>
+</main>
+
+<!-- ===================== TAB: SKILLS ===================== -->
+<main id="tabSkills" class="ml-[256px] pt-[56px] pb-12 min-h-screen hidden">
+    <section class="max-w-5xl mx-auto p-8 relative z-10">
+        <header class="mb-6">
+            <h2 class="text-[18px] font-bold font-headline mb-1" style="color: var(--theme-primary);">Installed Skills</h2>
+            <div class="h-0.5 w-12 bg-outline-variant border-dashed border-b border-outline-variant mb-6"></div>
+        </header>
+        <!-- Skills Grid -->
+        <div id="skillsContainer" class="grid grid-cols-1 md:grid-cols-2 gap-4"></div>
+        <!-- Expand Your Workshop -->
+        <div class="mt-12 grid grid-cols-1 gap-6">
+            <div class="bg-surface-container-lowest border border-outline-variant stitched-border rounded-2xl p-8 flex flex-col md:flex-row items-center justify-between gap-6 overflow-hidden relative">
+                <div class="absolute -right-12 -top-12 w-48 h-48 bg-primary/5 rounded-full blur-3xl"></div>
+                <div class="relative z-10 max-w-lg">
+                    <h4 class="text-xl font-headline font-bold text-on-surface mb-2">Expand Your Workshop</h4>
+                    <p class="text-on-surface-variant text-sm">Need more specialized tools? Browse the community library for custom Python-based skills for Hermes WebUI.</p>
+                    <div class="mt-6 flex gap-4">
+                        <button onclick="showSkillStore()" class="px-5 py-2.5 bg-primary text-on-primary font-bold rounded-lg text-sm transition-all active:scale-95">Open Skill Store</button>
+                        <label class="px-5 py-2.5 bg-surface-container-high text-on-surface font-bold rounded-lg text-sm border border-outline-variant/30 transition-all active:scale-95 cursor-pointer">
+                            Import Skill (.zip)
+                            <input type="file" class="hidden" accept=".zip" onchange="importSkill(event)">
+                        </label>
+                    </div>
+                </div>
+                <div class="w-full md:w-64 h-40 bg-surface-container rounded-xl border border-outline-variant/20 overflow-hidden relative group flex items-center justify-center">
+                    <div class="absolute inset-0 bg-gradient-to-t from-surface-container-lowest to-transparent"></div>
+                    <div class="absolute bottom-4 left-4 flex items-center gap-2 z-10">
+                        <div class="w-8 h-8 rounded bg-primary/20 flex items-center justify-center">
+                            <span class="material-symbols-outlined text-primary text-xs">extension</span>
+                        </div>
+                        <span class="text-xs font-bold text-primary">240+ New Skills</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+    <!-- Decorative Bottom Gradient -->
+    <div class="fixed bottom-0 left-[256px] right-0 h-24 bg-gradient-to-t from-background to-transparent pointer-events-none z-10"></div>
+</main>
+
+<!-- ===================== TAB: MEMORY ===================== -->
+<main id="tabMemory" class="ml-[256px] pt-[56px] pb-12 min-h-screen hidden">
+    <div class="max-w-5xl mx-auto p-12">
+        <!-- Header Section -->
+        <div class="mb-10 flex items-center justify-between flex-wrap gap-4">
+            <div>
+                <h2 class="text-[18px] font-bold text-[#e8a849] font-headline mb-1">Memory System</h2>
+                <p class="text-[13px] text-on-surface-variant">These memory files are shared with Hermes CLI. Changes apply to both.</p>
+            </div>
+            <div class="flex gap-3">
+                <button onclick="snapshotMemory()" class="flex items-center gap-2 px-4 py-2 rounded-xl bg-surface-container border border-outline-variant/20 text-on-surface-variant hover:border-outline-variant/50 text-sm font-bold transition-all">
+                    <span class="material-symbols-outlined text-[16px]">save</span> Snapshot
+                </button>
+                <button onclick="openExtractModal()" class="flex items-center gap-2 px-4 py-2 rounded-xl font-bold text-sm transition-all active:scale-95" style="background:var(--theme-primary);color:#1a1a1a;">
+                    <span class="material-symbols-outlined text-[16px]">auto_awesome</span> Extract from Chat
+                </button>
+            </div>
+        </div>
+        <!-- Memory Cards -->
+        <div class="flex flex-col gap-6">
+            <!-- SOUL.md -->
+            <div class="bg-surface-container rounded-xl p-6 border border-transparent hover:border-outline-variant transition-all group relative overflow-hidden shadow-sm">
+                <div class="flex justify-between items-start mb-4 relative z-10">
+                    <div class="flex items-center gap-4">
+                        <div class="w-12 h-12 bg-surface-container-lowest rounded-lg flex items-center justify-center border border-outline-variant text-primary">
+                            <span class="material-symbols-outlined" style="font-size:28px">person</span>
+                        </div>
+                        <div>
+                            <h3 class="font-bold text-on-surface font-headline">SOUL.md</h3>
+                            <p class="text-sm text-on-surface-variant">Agent's core personality, name, behavior rules</p>
+                        </div>
+                    </div>
+                    <button onclick="editMemory('SOUL.md')" class="text-[13px] font-bold text-[#e8a849] hover:underline flex items-center gap-1 px-3 py-1 rounded-lg hover:bg-primary/10 transition-colors">
+                        <span class="material-symbols-outlined" style="font-size:16px">edit</span> Edit
+                    </button>
+                </div>
+                <div class="relative">
+                    <pre id="memorySoul" class="bg-surface-container-lowest rounded-lg p-4 font-mono text-[13px] text-on-surface-variant border border-outline-variant/30 max-h-32 overflow-hidden whitespace-pre-wrap"></pre>
+                    <div class="absolute bottom-0 left-0 right-0 h-12 bg-gradient-to-t from-surface-container-lowest to-transparent"></div>
+                </div>
+            </div>
+            <!-- MEMORY.md -->
+            <div class="bg-surface-container rounded-xl p-6 border border-transparent hover:border-outline-variant transition-all group relative overflow-hidden shadow-sm">
+                <div class="flex justify-between items-start mb-4 relative z-10">
+                    <div class="flex items-center gap-4">
+                        <div class="w-12 h-12 bg-surface-container-lowest rounded-lg flex items-center justify-center border border-outline-variant text-primary">
+                            <span class="material-symbols-outlined" style="font-size:28px">psychology</span>
+                        </div>
+                        <div>
+                            <h3 class="font-bold text-on-surface font-headline">MEMORY.md</h3>
+                            <p class="text-sm text-on-surface-variant">Accumulated knowledge and context</p>
+                        </div>
+                    </div>
+                    <button onclick="editMemory('MEMORY.md')" class="text-[13px] font-bold text-[#e8a849] hover:underline flex items-center gap-1 px-3 py-1 rounded-lg hover:bg-primary/10 transition-colors">
+                        <span class="material-symbols-outlined" style="font-size:16px">edit</span> Edit
+                    </button>
+                </div>
+                <div class="relative">
+                    <pre id="memoryMemory" class="bg-surface-container-lowest rounded-lg p-4 font-mono text-[13px] text-on-surface-variant border border-outline-variant/30 max-h-32 overflow-hidden whitespace-pre-wrap"></pre>
+                    <div class="absolute bottom-0 left-0 right-0 h-12 bg-gradient-to-t from-surface-container-lowest to-transparent"></div>
+                </div>
+            </div>
+            <!-- USER.md -->
+            <div class="bg-surface-container rounded-xl p-6 border border-transparent hover:border-outline-variant transition-all group relative overflow-hidden shadow-sm">
+                <div class="flex justify-between items-start mb-4 relative z-10">
+                    <div class="flex items-center gap-4">
+                        <div class="w-12 h-12 bg-surface-container-lowest rounded-lg flex items-center justify-center border border-outline-variant text-primary">
+                            <span class="material-symbols-outlined" style="font-size:28px">badge</span>
+                        </div>
+                        <div>
+                            <h3 class="font-bold text-on-surface font-headline">USER.md</h3>
+                            <p class="text-sm text-on-surface-variant">User profile information</p>
+                        </div>
+                    </div>
+                    <button onclick="editMemory('USER.md')" class="text-[13px] font-bold text-[#e8a849] hover:underline flex items-center gap-1 px-3 py-1 rounded-lg hover:bg-primary/10 transition-colors">
+                        <span class="material-symbols-outlined" style="font-size:16px">edit</span> Edit
+                    </button>
+                </div>
+                <div class="relative">
+                    <pre id="memoryUser" class="bg-surface-container-lowest rounded-lg p-4 font-mono text-[13px] text-on-surface-variant border border-outline-variant/30 max-h-32 overflow-hidden whitespace-pre-wrap"></pre>
+                    <div class="absolute bottom-0 left-0 right-0 h-12 bg-gradient-to-t from-surface-container-lowest to-transparent"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+</main>
+
+<!-- ===================== TAB: SETTINGS ===================== -->
+<main id="tabSettings" class="ml-[256px] pt-[56px] pb-12 min-h-screen hidden">
+    <div class="max-w-4xl mx-auto px-12 pt-12">
+        <header class="mb-10">
+            <h2 class="text-[18px] font-bold text-[#e8a849] flex items-center gap-3">
+                <span class="material-symbols-outlined">settings</span> Settings
+            </h2>
+            <div class="h-[1px] w-full bg-gradient-to-r from-outline-variant/50 to-transparent mt-4"></div>
+        </header>
+        <div class="space-y-8">
+            <!-- Identity Tabs -->
+            <div class="flex gap-4 mb-6">
+                <button id="tabAgentBtn" onclick="switchIdentityTab('agent')" class="px-4 py-2 rounded-lg text-sm font-bold transition-all bg-[#e8a849] text-[#452b00]">Agent</button>
+                <button id="tabUserBtn" onclick="switchIdentityTab('user')" class="px-4 py-2 rounded-lg text-sm font-bold transition-all text-on-surface-variant hover:text-on-surface">User</button>
+            </div>
+
+            <!-- CARD: Agent Identity -->
+            <section id="agentIdentityCard" class="bg-[#1f1f22] rounded-3xl p-8 border border-outline-variant/10 shadow-2xl relative overflow-hidden">
+                <div class="flex items-center gap-3 mb-8">
+                    <span class="material-symbols-outlined text-[#e8a849]">account_circle</span>
+                    <h3 class="text-on-surface font-semibold tracking-tight">Agent Identity</h3>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-[140px_1fr] gap-10 items-start">
+                    <div class="relative group">
+                        <div id="settingsAvatarZone" class="avatar-upload-zone group relative" onclick="document.getElementById('settingsAvatarInput').click()">
+                            <span class="material-symbols-outlined text-3xl text-outline">upload</span>
+                            <span class="text-[10px] text-outline font-bold mt-1 uppercase tracking-widest">Avatar</span>
+                            <div class="upload-overlay">
+                                <span class="material-symbols-outlined text-white">upload</span>
+                                <span class="text-[10px] text-white font-bold mt-1">UPDATE</span>
+                            </div>
+                        </div>
+                        <input type="file" id="settingsAvatarInput" class="hidden" accept="image/*" onchange="handleSettingsAvatar(event)">
+                        <p class="text-[10px] text-on-surface-variant mt-3 text-center uppercase tracking-widest opacity-50">Avatar</p>
+                    </div>
+                    <div class="space-y-6">
+                        <div class="space-y-2">
+                            <label class="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest block px-1">Agent Name</label>
+                            <input id="settingsName" type="text" class="settings-input font-bold" placeholder="Give your agent a name..." maxlength="32">
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- CARD: User Identity -->
+            <section id="userIdentityCard" class="bg-[#1f1f22] rounded-3xl p-8 border border-outline-variant/10 shadow-2xl relative overflow-hidden hidden">
+                <div class="flex items-center gap-3 mb-8">
+                    <span class="material-symbols-outlined" style="color: var(--theme-primary);">person</span>
+                    <h3 class="text-on-surface font-semibold tracking-tight">User Identity</h3>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-[140px_1fr] gap-10 items-start">
+                    <div class="relative group">
+                        <div id="userAvatarZone" class="avatar-upload-zone group relative" onclick="document.getElementById('userAvatarInput').click()">
+                            <span class="material-symbols-outlined text-3xl text-outline">upload</span>
+                            <span class="text-[10px] text-outline font-bold mt-1 uppercase tracking-widest">Avatar</span>
+                            <div class="upload-overlay">
+                                <span class="material-symbols-outlined text-white">upload</span>
+                                <span class="text-[10px] text-white font-bold mt-1">UPDATE</span>
+                            </div>
+                        </div>
+                        <input type="file" id="userAvatarInput" class="hidden" accept="image/*" onchange="handleUserAvatar(event)">
+                        <p class="text-[10px] text-on-surface-variant mt-3 text-center uppercase tracking-widest opacity-50">Avatar</p>
+                    </div>
+                    <div class="space-y-6">
+                        <div class="space-y-2">
+                            <label class="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest block px-1">Your Name</label>
+                            <input id="userName" type="text" class="settings-input font-bold" placeholder="Your name..." maxlength="32">
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- CARD: Theme Color -->
+            <section class="bg-[#1f1f22] rounded-3xl p-8 border border-outline-variant/10 shadow-2xl relative">
+                <div class="flex items-center gap-3 mb-8">
+                    <span class="material-symbols-outlined" style="color: var(--theme-primary);">palette</span>
+                    <h3 class="text-on-surface font-semibold tracking-tight">Set Color</h3>
+                </div>
+                <div class="flex flex-wrap items-center gap-6" id="settingsThemePicker">
+                    <div class="theme-swatch selected" style="background: #e8a849;" data-preset="amber" onclick="selectSettingsTheme(this)"></div>
+                    <div class="theme-swatch" style="background: #d0bcff;" data-preset="purple" onclick="selectSettingsTheme(this)"></div>
+                    <div class="theme-swatch" style="background: #81c784;" data-preset="green" onclick="selectSettingsTheme(this)"></div>
+                    <div class="theme-swatch" style="background: #00daf3;" data-preset="cyan" onclick="selectSettingsTheme(this)"></div>
+                    <div class="theme-swatch" style="background: #f48fb1;" data-preset="rose" onclick="selectSettingsTheme(this)"></div>
+                </div>
+            </section>
+
+            <!-- CARD: System Info -->
+            <section class="bg-[#1f1f22] rounded-3xl p-8 border border-outline-variant/10 shadow-2xl relative">
+                <div class="flex items-center gap-3 mb-8">
+                    <span class="material-symbols-outlined" style="color: var(--theme-primary);">info</span>
+                    <h3 class="text-on-surface font-semibold tracking-tight">System Info</h3>
+                </div>
+                <div id="settingsInfo" class="space-y-4 font-mono text-sm"></div>
+            </section>
+
+            <!-- CARD: Memory Debug -->
+            <section class="bg-[#1f1f22] rounded-3xl p-8 border border-outline-variant/10 shadow-2xl relative">
+                <div class="flex items-center justify-between mb-4">
+                    <div class="flex items-center gap-3">
+                        <span class="material-symbols-outlined" style="color: var(--theme-primary);">psychology</span>
+                        <h3 class="text-on-surface font-semibold tracking-tight">Memory Debug</h3>
+                    </div>
+                    <button onclick="refreshMemoryDebug()" class="text-xs px-3 py-1.5 rounded-lg bg-surface-container-high hover:bg-surface-container-highest transition-colors flex items-center gap-1">
+                        <span class="material-symbols-outlined text-[14px]">refresh</span>
+                        Refresh
+                    </button>
+                </div>
+                <p class="text-xs text-on-surface-variant mb-4">Preview of SOUL.md content (used as system prompt in Chat mode):</p>
+                <div id="memoryDebugContent" class="bg-surface-container-lowest rounded-xl p-4 font-mono text-xs text-on-surface-variant max-h-48 overflow-y-auto border border-outline-variant/20">
+                    <span class="text-outline italic">Loading...</span>
+                </div>
+                <div id="memoryDebugStatus" class="mt-3 flex items-center gap-2 text-xs">
+                    <span class="w-2 h-2 rounded-full bg-outline"></span>
+                    <span class="text-on-surface-variant">Checking...</span>
+                </div>
+            </section>
+
+            <!-- Save Changes Button -->
+            <div class="flex justify-end pt-4">
+                <button onclick="saveSettings()" class="bg-[#e8a849] hover:bg-[#ffc676] text-[#452b00] px-8 py-4 rounded-xl font-bold flex items-center gap-3 shadow-[0_8px_24px_-4px_rgba(232,168,73,0.3)] transition-all active:scale-95 group">
+                    <span class="material-symbols-outlined text-[20px] group-hover:rotate-12 transition-transform">check_circle</span>
+                    Save Changes
+                </button>
+            </div>
+        </div>
+    </div>
+</main>
+
+<!-- ===================== FLOATING INPUT BAR ===================== -->
+<div id="inputBar" class="fixed bottom-0 right-0 left-[256px] flex flex-col items-center py-8 px-8 pointer-events-none z-30">
+    <div class="w-full max-w-[900px] pointer-events-auto flex flex-col gap-3">
+        <!-- Attachment preview -->
+        <div id="attachmentPreview" class="hidden mb-1 bg-surface-container/80 backdrop-blur-xl p-3 rounded-xl border border-outline-variant/20">
+            <div id="attachmentList" class="flex flex-wrap gap-2 items-center"></div>
+            <div class="mt-1.5 flex justify-between items-center">
+                <span class="text-[9px] uppercase tracking-widest text-on-surface-variant/30 font-bold">
+                    <span class="material-symbols-outlined text-[11px]">info</span>
+                    Files will be attached to the next agent message
+                </span>
+                <button onclick="removeAttachment()" class="text-[9px] text-on-surface-variant/40 hover:text-error">Clear all</button>
+            </div>
+        </div>
+        <!-- Input -->
+        <div class="bg-surface-container border border-[#333338] rounded-2xl shadow-2xl p-2 pl-4 flex items-center gap-3 backdrop-blur-md">
+            <label class="text-on-surface-variant/60 hover:text-primary transition-colors cursor-pointer">
+                <span class="material-symbols-outlined text-[20px]">attach_file</span>
+                <input type="file" id="fileInput" class="hidden" accept="image/*,text/*,application/pdf,.py,.js,.ts,.json,.yaml,.yml,.md,.csv,.txt" multiple onchange="handleFileSelect(event)">
+            </label>
+            <textarea id="messageInput" class="flex-1 bg-transparent border-none focus:ring-0 text-sm text-on-surface placeholder-on-surface-variant/40 font-body resize-none py-2 max-h-32" placeholder="Type a message... (⌘K to focus)" rows="1" onkeydown="handleKeyDown(event)" oninput="autoResize(this);updateTokenEstimate();convertWindowsPathInInput()" onpaste="handlePaste(event)"></textarea>
+            <button id="voiceBtn"
+                onmousedown="voicePressStart(event)"
+                onmouseup="voicePressEnd(event)"
+                onmouseleave="voicePressEnd(event)"
+                ontouchstart="voicePressStart(event)"
+                ontouchend="voicePressEnd(event)"
+                title="按住录音，松开发送"
+                class="w-8 h-8 rounded-full flex items-center justify-center hover:bg-surface-container-high transition-all shrink-0 text-on-surface-variant/50 hover:text-on-surface select-none">
+                <span class="material-symbols-outlined text-[18px]">mic</span>
+            </button>
+            <button onclick="sendMessage()" id="sendButton" class="w-10 h-10 rounded-full flex items-center justify-center hover:scale-105 active:scale-95 transition-all shadow-lg shrink-0" style="background-color: var(--theme-primary); color: var(--theme-primary-dim);">
+                <span class="material-symbols-outlined text-[18px] font-bold">arrow_upward</span>
+            </button>
+
+<button onclick="stopGeneration()" id="stopButton" class="hidden w-10 h-10 rounded-full flex items-center justify-center hover:scale-105 active:scale-95 transition-all shadow-lg shrink-0 bg-error/20 hover:bg-error/30">
+                <span class="material-symbols-outlined text-[18px] text-error">stop_circle</span>
+            </button>
+        </div>
+        <!-- Status bar -->
+        <div class="flex justify-between items-center px-2">
+            <div class="flex gap-4 items-center">
+                <div class="flex items-center gap-1.5">
+                    <span id="tokenCounter" class="text-[9px] uppercase tracking-widest font-bold font-mono" style="color:var(--theme-primary);opacity:0.5;"></span>
+                </div>
+                <div id="attachCountWrap" class="hidden flex items-center gap-1.5">
+                    <span class="material-symbols-outlined text-[12px]" style="color:var(--theme-primary);opacity:0.6">attach_file</span>
+                    <span id="attachCount" class="text-[9px] uppercase tracking-widest font-bold font-mono" style="color:var(--theme-primary);opacity:0.6"></span>
+                </div>
+                <div class="flex items-center gap-1.5">
+                    <span class="text-[9px] uppercase tracking-widest text-on-surface-variant/40 font-bold">Latency</span>
+                    <span id="latencyDisplay" class="text-[9px] uppercase tracking-widest text-primary/60 font-bold font-mono">--ms</span>
+                </div>
+                <div class="flex items-center gap-1.5 relative">
+                    <span class="text-[9px] uppercase tracking-widest text-on-surface-variant/40 font-bold">Model</span>
+                    <div class="relative group">
+                        <span id="modelDisplay" class="text-[9px] uppercase tracking-widest text-on-surface-variant/80 font-bold font-mono cursor-pointer hover:text-on-surface-variant transition-colors">--</span>
+                        <div id="modelSelector" class="hidden absolute top-full left-0 mt-1 w-52 bg-[#252528] border border-outline-variant rounded-xl shadow-xl z-50 max-h-60 overflow-y-auto">
+                            <div class="p-1.5">
+                                <div class="text-[9px] uppercase tracking-widest text-on-surface-variant/50 font-bold px-2 py-1">Switch Model</div>
+                                <div id="modelList" class="space-y-0.5"></div>
+                            </div>
+                            <div class="border-t border-outline-variant/50 px-2 py-1.5">
+                                <button id="discoverModelsBtn" class="w-full text-left text-[10px] text-on-surface-variant/60 hover:text-primary transition-colors py-1 flex items-center gap-1.5">
+                                    <span class="material-symbols-outlined text-[11px]">search</span>Discover local models
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="flex items-center gap-1.5">
+                    <span class="text-[9px] uppercase tracking-widest text-on-surface-variant/40 font-bold">Memory</span>
+                    <span class="text-[9px] uppercase tracking-widest font-bold" style="color: var(--theme-primary); opacity: 0.6;">Synced</span>
+                </div>
+            </div>
+            <div class="flex items-center gap-3">
+                <button onclick="exportChat('markdown')" title="Export chat (⌘⇧E)" class="text-[9px] uppercase tracking-widest text-on-surface-variant/30 hover:text-on-surface-variant/70 font-bold font-headline transition-colors flex items-center gap-1">
+                    <span class="material-symbols-outlined text-[12px]">download</span>EXPORT
+                </button>
+                <button onclick="document.getElementById('shortcutModal').classList.toggle('hidden')" title="Keyboard shortcuts (?)" class="text-[9px] uppercase tracking-widest text-on-surface-variant/30 hover:text-on-surface-variant/70 font-bold font-headline transition-colors flex items-center gap-1">
+                    <span class="material-symbols-outlined text-[12px]">keyboard</span>KEYS
+                </button>
+                <span class="text-[9px] uppercase tracking-widest text-on-surface-variant/20 font-bold font-headline">HERMES WEBUI V2.0</span>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ===================== MEMORY EDITOR MODAL ===================== -->
+<div id="memoryModal" class="modal-overlay">
+    <div class="w-full max-w-[700px] max-h-[80vh] bg-[#1f1f22] rounded-2xl shadow-[0px_24px_48px_-12px_rgba(0,0,0,0.8)] border border-outline-variant flex flex-col overflow-hidden relative mx-6">
+        <!-- Modal Header -->
+        <div class="px-6 py-4 flex items-center justify-between border-b border-dashed border-[#514536] bg-[#131316]">
+            <div class="flex items-center gap-3">
+                <span class="material-symbols-outlined text-[#e8a849]">description</span>
+                <span id="memoryModalTitle" class="font-bold text-on-surface font-headline tracking-wide uppercase text-sm"></span>
+            </div>
+            <div class="flex items-center gap-3">
+                <button onclick="saveMemory()" class="px-5 py-2 bg-primary-container text-on-primary font-bold rounded-lg text-xs uppercase tracking-widest hover:opacity-90 transition-all active:scale-95 shadow-inner">Save</button>
+                <button onclick="closeMemoryModal()" class="w-8 h-8 flex items-center justify-center text-on-surface-variant hover:text-primary transition-colors">
+                    <span class="material-symbols-outlined">close</span>
+                </button>
+            </div>
+        </div>
+        <!-- Modal Body -->
+        <div class="flex-1 p-6 bg-[#1f1f22]">
+            <div class="w-full h-full bg-[#0e0e11] rounded-xl border border-outline-variant relative overflow-hidden">
+                <div class="absolute top-0 left-0 w-full h-1 bg-[#e8a849]/20"></div>
+                <textarea id="memoryEditor" class="w-full h-full min-h-[400px] bg-transparent p-6 font-mono text-sm text-on-surface leading-relaxed resize-vertical focus:ring-0 focus:outline-none border-none placeholder:text-outline-variant/50" spellcheck="false"></textarea>
+            </div>
+        </div>
+        <!-- Modal Footer Metadata -->
+        <div class="px-6 py-3 bg-surface-container-lowest flex justify-between items-center text-[10px] font-bold text-on-surface-variant uppercase tracking-widest border-t border-dashed border-[#514536]">
+            <span id="memoryEditorMeta">Lines: 0 | Words: 0</span>
+            <span class="flex items-center gap-2">
+                <span class="w-1.5 h-1.5 rounded-full bg-primary/40"></span>
+                Autosave: Off
+            </span>
+        </div>
+    </div>
+</div>
+
+<!-- ===================== SUPPORT MODAL ===================== -->
+<div id="supportModal" class="modal-overlay">
+    <div class="w-full max-w-[480px] bg-surface-container rounded-2xl shadow-2xl border border-outline-variant p-8 relative mx-6">
+        <div class="flex items-center justify-between mb-6">
+            <div class="flex items-center gap-3">
+                <span class="material-symbols-outlined text-primary text-2xl">help_outline</span>
+                <h2 class="font-headline text-xl font-bold text-on-surface">Support</h2>
+            </div>
+            <button onclick="closeSupportModal()" class="w-8 h-8 flex items-center justify-center text-on-surface-variant hover:text-primary transition-colors">
+                <span class="material-symbols-outlined">close</span>
+            </button>
+        </div>
+        <div class="space-y-4 text-sm text-on-surface-variant">
+            <p>Hermes WebUI — The Saddle for Hermes，与 Hermes CLI 共享记忆的网页界面。</p>
+            <div class="bg-surface-container-lowest rounded-xl p-4 space-y-2">
+                <h3 class="font-bold text-on-surface text-xs uppercase tracking-widest">Keyboard Shortcuts</h3>
+                <div class="flex justify-between"><span>Send message</span><span class="font-mono text-primary">Enter</span></div>
+                <div class="flex justify-between"><span>New line</span><span class="font-mono text-primary">Shift + Enter</span></div>
+            </div>
+            <div class="bg-surface-container-lowest rounded-xl p-4 space-y-2">
+                <h3 class="font-bold text-on-surface text-xs uppercase tracking-widest">Memory Files</h3>
+                <p>SOUL.md, MEMORY.md, and USER.md are shared with Hermes CLI.</p>
+                <p class="text-xs opacity-70">Located in: ~/.hermes/</p>
+            </div>
+            <div class="bg-surface-container-lowest rounded-xl p-4 space-y-2">
+                <h3 class="font-bold text-on-surface text-xs uppercase tracking-widest">Contact</h3>
+                <p>Email: <a href="mailto:stevensong0421@gmail.com" class="text-primary hover:underline">stevensong0421@gmail.com</a></p>
+            </div>
+            <div class="pt-4 border-t border-outline-variant/30 space-y-3">
+                <p class="text-xs text-on-surface-variant/60">Version: <span id="localVersion">checking...</span></p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ===================== AUTH TOKEN MODAL ===================== -->
+<div id="authModal" class="modal-overlay" style="z-index:400;">
+    <div class="w-full max-w-[420px] bg-surface-container rounded-2xl shadow-2xl border border-outline-variant p-8 relative mx-6">
+        <div class="flex flex-col items-center gap-4">
+            <div class="w-14 h-14 rounded-2xl bg-surface-container-lowest flex items-center justify-center border border-outline-variant">
+                <span class="material-symbols-outlined text-primary text-3xl">lock</span>
+            </div>
+            <h2 class="font-headline text-xl font-bold text-on-surface">Authentication Required</h2>
+            <p class="text-sm text-on-surface-variant text-center">Enter the API token shown in the server terminal.</p>
+            <input id="authTokenInput" type="password" class="w-full bg-surface-container-lowest border border-outline-variant rounded-xl px-4 py-3 text-center font-mono text-sm text-on-surface placeholder:text-outline focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none" placeholder="Paste token here...">
+            <button onclick="submitAuthToken()" class="w-full bg-primary-container text-on-primary font-bold py-3 px-6 rounded-xl text-sm transition-all active:scale-95">Authenticate</button>
+            <p id="authError" class="text-xs text-error hidden">Invalid token. Please try again.</p>
+        </div>
+    </div>
+</div>
+
+<!-- ===================== TOAST NOTIFICATION ===================== -->
+<div id="saveToast" class="fixed top-4 right-4 z-[999] px-5 py-3 rounded-xl text-sm font-bold transition-all duration-300 opacity-0 translate-y-[-20px] pointer-events-none bg-primary-container text-on-primary">
+    <span class="material-symbols-outlined text-sm align-middle mr-1">check_circle</span>
+    <span id="saveToastText">Saved!</span>
+</div>
+
+<!-- ===================== RENAME MODAL ===================== -->
+<div id="renameModal" class="modal-overlay hidden">
+    <div class="w-full max-w-[420px] bg-surface-container rounded-2xl shadow-2xl border border-outline-variant p-6 relative mx-6">
+        <div class="flex items-center gap-3 mb-4">
+            <span class="material-symbols-outlined text-primary">edit</span>
+            <h2 class="font-headline text-base font-bold text-on-surface">重命名对话</h2>
+        </div>
+        <input id="renameInput" type="text" class="w-full bg-surface-container-lowest border border-outline-variant rounded-xl px-4 py-3 font-body text-sm text-on-surface placeholder:text-outline focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none" placeholder="对话标题...">
+        <div class="flex justify-end gap-3 mt-4">
+            <button onclick="document.getElementById('renameModal').classList.add('hidden')" class="px-5 py-2 rounded-xl text-sm font-bold text-on-surface-variant hover:text-on-surface transition-colors">取消</button>
+            <button onclick="confirmRename()" class="px-5 py-2 bg-primary-container text-on-primary font-bold rounded-xl text-sm transition-all hover:opacity-90 active:scale-95">确认</button>
+        </div>
+    </div>
+</div>
+
+<!-- ===================== AMBIENT GLOW ===================== -->
+<div class="fixed top-0 right-0 w-[500px] h-[500px] bg-primary/5 blur-[120px] rounded-full -translate-y-1/2 translate-x-1/3 pointer-events-none z-0"></div>
+
+<!-- Main entry: dynamic import to ensure module execution in all browser environments -->
+<script type="module">
+    import('/assets/js/main.js').catch(e => console.error('Main module load failed:', e));
+</script>
+
+</body>
+</html>
