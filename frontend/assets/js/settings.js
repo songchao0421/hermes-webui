@@ -125,9 +125,11 @@ export function selectTheme(preset) {
         s.classList.toggle('selected', s.dataset.preset === preset);
     });
     if (preset === 'custom') {
-        document.getElementById('settingsCustomColor').classList.remove('hidden');
+        const el = document.getElementById('settingsCustomColor');
+        if (el) el.classList.remove('hidden');
     } else {
-        document.getElementById('settingsCustomColor').classList.add('hidden');
+        const el = document.getElementById('settingsCustomColor');
+        if (el) el.classList.add('hidden');
         const presetColors = {
             amber: '#e8a849', green: '#a6e3a1', blue: '#89b4fa', pink: '#f38ba8',
             purple: '#cba6f7', teal: '#94e2d5', peach: '#fab387', yellow: '#f9e2af'

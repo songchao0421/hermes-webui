@@ -86,7 +86,7 @@ if (typeof App.pollRoutingStatus === 'function') {
         overlay.innerHTML = [
             '<div style="max-width:440px;width:100%;">',
             '  <div style="text-align:center;margin-bottom:2rem;">',
-            '    <div style="width:64px;height:64px;margin:0 auto 1rem;border-radius:16px;background:linear-gradient(135deg,#7c3aed,#6366f1);display:flex;align-items:center;justify-content:center;font-size:32px;color:#fff;">🐎</div>',
+            '    <div style="width:64px;height:64px;margin:0 auto 1rem;border-radius:16px;background:linear-gradient(135deg,#e8a849,#d4912f);display:flex;align-items:center;justify-content:center;font-size:32px;color:#fff;">🐎</div>',
             '    <h1 style="font-size:1.5rem;font-weight:700;color:#fff;margin:0 0 .25rem;">Hermes WebUI</h1>',
             '    <p style="font-size:.875rem;color:rgba(255,255,255,.5);margin:0;">AI Agent 驾驶舱 · 初始化</p>',
             '  </div>',
@@ -104,7 +104,7 @@ if (typeof App.pollRoutingStatus === 'function') {
             '        <option value="openai">OpenAI</option>',
             '      </select>',
             '      <input id="onboarding-key-input" type="password" placeholder="sk-..." style="background:#1e1e24;border:1px solid rgba(255,255,255,.1);border-radius:8px;padding:.5rem .75rem;font-size:.8125rem;color:#fff;outline:none;"/>',
-            '      <button id="onboarding-save-key" style="background:linear-gradient(135deg,#7c3aed,#6366f1);border:none;border-radius:8px;padding:.5rem .75rem;font-size:.8125rem;font-weight:600;color:#fff;cursor:pointer;">保存 Key</button>',
+            '      <button id="onboarding-save-key" style="background:linear-gradient(135deg,#e8a849,#d4912f);border:none;border-radius:8px;padding:.5rem .75rem;font-size:.8125rem;font-weight:600;color:#fff;cursor:pointer;">保存 Key</button>',
             '      <div id="onboarding-key-msg" style="font-size:.75rem;color:rgba(255,255,255,.4);min-height:1.2em;"></div>',
             '    </div>',
             '  </div>',

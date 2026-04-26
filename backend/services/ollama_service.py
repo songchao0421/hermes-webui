@@ -25,7 +25,34 @@ logger = logging.getLogger("hermes_webui.ollama_service")
 CONFIG_YAML = Path.home() / ".hermes" / "config.yaml"
 
 # ── Well-known Ollama endpoints ─────────────────────────────────────────
-_CANDIDATES = ["localhost", "host.docker.internal"]
+def _get_wsl_gateway() -> Optional[str]:
+    """Detect WSL2 gateway IP (Windows host) from default route."""
+    try:
+        import subprocess
+        r = subprocess.run(
+            ["ip", "route"],
+            capture_output=True, text=True, timeout=3,
+        )
+        for line in r.stdout.splitlines():
+            if line.startswith("default via "):
+                parts = line.split()
+                if len(parts) >= 3:
+                    return parts[2]
+    except Exception:
+        pass
+    return None
+
+
+def _list_candidates() -> list[str]:
+    """Assemble candidate hosts for Ollama probing."""
+    hosts = ["localhost", "host.docker.internal"]
+    gw = _get_wsl_gateway()
+    if gw and gw not in hosts:
+        hosts.insert(0, gw)  # WSL gateway (Windows host) first
+    return hosts
+
+
+_CANDIDATES = _list_candidates()
 
 
 def _read_ollama_url_from_config() -> Optional[str]:
