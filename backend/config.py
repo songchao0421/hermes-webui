@@ -1,12 +1,12 @@
 """
-马鞍 Ma'an — Central Configuration Module
-===========================================
+Hermes WebUI — Central Configuration Module
+============================================
 
 Single source of truth for all paths and settings.
 Priority chain for data dir:
-  1. MAAN_HOME environment variable
-  2. config/maan.yaml → data_dir field
-  3. ~/.maan/ (auto-migrate from ~/.hermes-webui if it exists)
+  1. HERMES_WEBUI_HOME environment variable
+  2. config/hermes-webui.yaml → data_dir field
+  3. ~/.hermes/hermes-webui/ (auto-migrate from ~/.hermes-webui if it exists)
 
 Environment auto-detection:
   - detect available tools (hermes, ollama, python)
@@ -29,10 +29,13 @@ logger = logging.getLogger("hermes_webui.config")
 # Resolve the actual project root (where backend/ lives)
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
-# Possible config file names (project ships with maan.yaml)
-CONFIG_FILE_NAMES = ["maan.yaml", "hermes-webui.yaml"]
+# Possible config file names (project ships with hermes-webui.yaml)
+# NOTE: maan.yaml was the legacy name, removed in v2.0.0
+CONFIG_FILE_NAMES = ["hermes-webui.yaml"]
 LEGACY_DATA_DIR_NAME = ".hermes-webui"
-NEW_DATA_DIR_NAME = ".maan"
+# Default data dir: ~/.hermes/hermes-webui/ (hardcoded in get_data_dir)
+# Hermes Agent home dir: ~/.hermes/
+HERMES_HOME_DIR = Path.home() / ".hermes"
 
 # ── Load Config File ──────────────────────────────────────────────
 
@@ -89,7 +92,8 @@ _data_dir_cache: Optional[Path] = None
 def _resolve_data_dir() -> Optional[Path]:
     """Resolve data directory without auto-creating or logging."""
     # 1. Environment variable takes highest priority
-    env_home = os.environ.get("MAAN_HOME")
+    # MAAN_HOME kept as fallback for backward compatibility (v1.x users)
+    env_home = os.environ.get("HERMES_WEBUI_HOME") or os.environ.get("MAAN_HOME")
     if env_home:
         return Path(env_home).expanduser().resolve()
 
@@ -107,9 +111,9 @@ def get_data_dir() -> Path:
     Get the data directory, auto-detecting and migrating as needed.
 
     Priority:
-      1. MAAN_HOME env var
-      2. config/maan.yaml → data_dir
-      3. ~/.maan/ (migrate from ~/.hermes-webui if present)
+      1. HERMES_WEBUI_HOME env var (MAAN_HOME also accepted for compatibility)
+      2. config/hermes-webui.yaml → data_dir
+      3. ~/.hermes/hermes-webui/ (migrate from ~/.hermes-webui if present)
 
     Returns a Path that always exists (creates if needed).
     """
@@ -126,11 +130,12 @@ def get_data_dir() -> Path:
 
     # Check for legacy ~/.hermes-webui
     legacy = Path.home() / LEGACY_DATA_DIR_NAME
-    new_dir = Path.home() / NEW_DATA_DIR_NAME
+    new_dir = Path.home() / ".hermes" / "hermes-webui"
 
     if legacy.exists() and not new_dir.exists():
         # Auto-migrate: rename legacy -> new
         logger.info(f"Migrating {legacy} -> {new_dir}")
+        new_dir.parent.mkdir(parents=True, exist_ok=True)
         legacy.rename(new_dir)
 
     if not new_dir.exists():
@@ -272,25 +277,15 @@ def find_hermes() -> Optional[str]:
 
 
 def has_ollama() -> bool:
-    """Check if Ollama is reachable."""
-    try:
-        import httpx
-        r = httpx.get("http://localhost:11434/api/tags", timeout=3)
-        return r.status_code == 200
-    except Exception:
-        return False
+    """Check if Ollama is reachable (delegates to unified ollama_service)."""
+    from services.ollama_service import check_ollama
+    return check_ollama()
 
 
 def get_ollama_models() -> list:
-    """Get list of pulled Ollama models."""
-    try:
-        import httpx
-        r = httpx.get("http://localhost:11434/api/tags", timeout=5)
-        if r.status_code == 200:
-            return [m["name"] for m in r.json().get("models", [])]
-    except Exception:
-        pass
-    return []
+    """Get list of pulled Ollama models (delegates to unified ollama_service)."""
+    from services.ollama_service import get_ollama_models_sync
+    return get_ollama_models_sync()
 
 
 def get_config_value(*keys: str, default=None) -> Any:
@@ -391,7 +386,7 @@ def first_run_setup(interactive: bool = True, quiet: bool = False) -> dict:
                 ans = input("  Install Ollama now? [Y/n] ").strip().lower()
                 if ans in ("", "y", "yes"):
                     tell("  Run: curl -fsSL https://ollama.com/install.sh | sh")
-                    tell("  Then re-launch Ma'an.")
+                    tell("  Then re-launch Hermes WebUI.")
         elif is_macos():
             if interactive and not quiet:
                 tell("  Install Ollama: https://ollama.com/download  or  brew install ollama")

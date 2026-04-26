@@ -3,6 +3,7 @@
  * Skill management: list, create, edit, delete skills.
  * Window-exported for HTML onclick compatibility.
  */
+const App = globalThis.App = globalThis.App || {};
 
 import { apiFetch, apiUrl } from './api.js';
 import { state } from './state.js';
@@ -146,12 +147,22 @@ export function importSkill(event) {
 }
 
 window.loadSkills = loadSkills;
+App.loadSkills = loadSkills;
 window.renderSkills = renderSkills;
+App.renderSkills = renderSkills;
 window.useSkill = useSkill;
+App.useSkill = useSkill;
 window.showNewSkillModal = showNewSkillModal;
+App.showNewSkillModal = showNewSkillModal;
 window.hideSkillModal = hideSkillModal;
+App.hideSkillModal = hideSkillModal;
 window.saveSkill = saveSkill;
+App.saveSkill = saveSkill;
 window.showDeleteSkillConfirm = showDeleteSkillConfirm;
+App.showDeleteSkillConfirm = showDeleteSkillConfirm;
 window.deleteSkill = deleteSkill;
+App.deleteSkill = deleteSkill;
 window.showSkillStore = showSkillStore;
+App.showSkillStore = showSkillStore;
 window.importSkill = importSkill;
+App.importSkill = importSkill;

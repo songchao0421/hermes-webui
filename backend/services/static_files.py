@@ -1,5 +1,5 @@
 """
-马鞍 (Ma'an) — Static Files Service
+Hermes WebUI — Static Files Service
 Custom StaticFiles subclass for development-friendly caching.
 """
 from fastapi.staticfiles import StaticFiles

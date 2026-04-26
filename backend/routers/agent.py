@@ -72,10 +72,12 @@ async def agent_stream(payload: AgentRequest):
     try:
         from services.task_router import decide_routing
         active = _model_switch.get_active_profile() if _model_switch else None
+        profiles_data = _model_switch.load_profiles() if _model_switch else {}
         decision = decide_routing(
             message=user_message,
             msg_dict=payload.model_dump(),
             active_profile=active,
+            profiles=profiles_data,
         )
         routing_info = {
             "target_tier": decision["target_tier"],
@@ -334,7 +336,7 @@ async def routing_correct(payload: dict):
       }
     """
     try:
-        from services.task_router import record_correction
+        from services.correction_store import record_correction
         record_correction(
             original_tier=payload.get("original_tier", "unknown"),
             corrected_tier=payload.get("corrected_tier", "unknown"),

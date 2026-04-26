@@ -18,15 +18,16 @@ Integration:
 """
 
 import re
-import json
 import logging
-from pathlib import Path
 from typing import Optional, Dict, Any, List, Tuple
 
-logger = logging.getLogger("hermes_webui.task_router")
+from services.correction_store import (
+    record_correction,
+    score_message,
+)
+from services.ollama_service import check_ollama as _check_ollama
 
-# ── Persistence ──────────────────────────────────────────────
-HISTORY_FILE = Path.home() / ".hermes" / "router_history.json"
+logger = logging.getLogger("hermes_webui.task_router")
 
 # ── Complexity Keywords ──────────────────────────────────────
 
@@ -205,6 +206,7 @@ def decide_routing(
     message: str,
     msg_dict: Optional[dict] = None,
     active_profile: Optional[dict] = None,
+    profiles: Optional[dict] = None,
 ) -> dict:
     """Make routing decision for a user message.
 
@@ -212,6 +214,8 @@ def decide_routing(
       message: The user's text message.
       msg_dict: Full message dict (may contain attachments, file_ids, etc.)
       active_profile: Current active model profile from model_switch.
+      profiles: Full model_profiles.json data (with "profiles" key).
+                 Passed from caller to avoid importing model_switch directly.
 
     Returns:
       {
@@ -243,6 +247,20 @@ def decide_routing(
         # ── Phase 2: Score-based decision ──
         score, _, reason_str = _keyword_score(message)
         result["score"] = score
+
+        # ── Phase 2b: Learned corrections override (if confident) ──
+        learned_tier = score_message(message)
+        if learned_tier and learned_tier != result.get("target_tier", ""):
+            if (
+                (learned_tier == "local" and score <= 30)
+                or (learned_tier == "remote" and score >= 50)
+            ):
+                # Correction agrees with score → boost confidence, keep existing
+                result["reason"] = f"{reason_str} + learned:{learned_tier}"
+            else:
+                # Correction disagrees → trust learned pattern
+                result["target_tier"] = learned_tier
+                result["reason"] = f"Learned correction → {learned_tier} (score={score})"
 
         # Attachments need vision-capable model — route to qwen3.6:27b (128K ctx, vision)
         has_att = _has_attachments(msg_dict or {})
@@ -282,11 +300,11 @@ def decide_routing(
         if target_is_local and not current_is_local:
             # Need to switch to a local model
             result["needs_switch"] = True
-            result["target_profile_id"] = _pick_local_profile(active_profile)
+            result["target_profile_id"] = _pick_local_profile(active_profile, profiles or {})
         elif not target_is_local and current_is_local:
             # Need to switch back to remote
             result["needs_switch"] = True
-            result["target_profile_id"] = _pick_remote_profile(active_profile)
+            result["target_profile_id"] = _pick_remote_profile(active_profile, profiles or {})
     else:
         # No active profile → we need to decide what to suggest
         result["needs_switch"] = False  # Can't switch without profiles
@@ -294,27 +312,25 @@ def decide_routing(
     return result
 
 
-def _pick_local_profile(current: dict) -> Optional[str]:
-    """Pick the best local profile from model_profiles.json.
+def _pick_local_profile(current: dict, profiles: dict) -> Optional[str]:
+    """Pick the best local profile from given profiles dict.
 
-    Prefers qwen2.5-coder:14b (best code model available).
-    Falls back to any local profile.
+    Prefers qwen3.6-27b-q4_K_M (best local model available with vision + 128K ctx).
+    Falls back to any local/free profile.
     """
     try:
-        from services.model_switch import load_profiles
-        data = load_profiles()
-        profiles = data.get("profiles", {})
+        profiles_dict = profiles.get("profiles", {}) if profiles else {}
 
-        # Preference order — qwen3.6:27b is the best local model (vision+128K ctx)
+        # Preference order
         preferred = ["qwen3.6-27b-q4_K_M", "qwen2.5-coder-14b", "qwen2.5-14b", "llava-7b"]
         for pid in preferred:
-            if pid in profiles:
-                p = profiles[pid]
+            if pid in profiles_dict:
+                p = profiles_dict[pid]
                 if p.get("type") == "local" or p.get("cost_tier") == "free":
                     return pid
 
         # Any local/free profile
-        for pid, p in profiles.items():
+        for pid, p in profiles_dict.items():
             if p.get("type") == "local" or p.get("cost_tier") == "free":
                 return pid
     except Exception:
@@ -322,19 +338,20 @@ def _pick_local_profile(current: dict) -> Optional[str]:
     return None
 
 
-def _pick_remote_profile(current: dict) -> Optional[str]:
-    """Pick the best remote profile. Prefers deepseek-chat."""
+def _pick_remote_profile(current: dict, profiles: dict) -> Optional[str]:
+    """Pick the best remote profile from given profiles dict.
+
+    Prefers deepseek-chat.
+    """
     try:
-        from services.model_switch import load_profiles
-        data = load_profiles()
-        profiles = data.get("profiles", {})
+        profiles_dict = profiles.get("profiles", {}) if profiles else {}
 
         preferred = ["deepseek-chat", "deepseek-reasoner"]
         for pid in preferred:
-            if pid in profiles:
+            if pid in profiles_dict:
                 return pid
 
-        for pid, p in profiles.items():
+        for pid, p in profiles_dict.items():
             if p.get("type") == "remote" or p.get("cost_tier") == "paid":
                 return pid
     except Exception:
@@ -342,91 +359,7 @@ def _pick_remote_profile(current: dict) -> Optional[str]:
     return None
 
 
-# ── Learning from corrections ────────────────────────────────
-
-
-def _load_history() -> dict:
-    """Load correction history."""
-    if HISTORY_FILE.exists():
-        try:
-            return json.loads(HISTORY_FILE.read_text(encoding="utf-8"))
-        except Exception:
-            pass
-    return {"corrections": [], "patterns": {}}
-
-
-def _save_history(data: dict):
-    """Save correction history."""
-    HISTORY_FILE.parent.mkdir(parents=True, exist_ok=True)
-    HISTORY_FILE.write_text(
-        json.dumps(data, ensure_ascii=False, indent=2),
-        encoding="utf-8",
-    )
-
-
-def record_correction(
-    original_tier: str,
-    corrected_tier: str,
-    message_text: str,
-):
-    """Record a user correction (re-route event) for learning.
-
-    Updates the pattern map so future similar messages route better.
-    """
-    data = _load_history()
-    data["corrections"].append({
-        "original": original_tier,
-        "corrected": corrected_tier,
-        "message": message_text[:100],
-        "timestamp": __import__("datetime").datetime.now().isoformat(),
-    })
-
-    # Update pattern weights
-    patterns = data.setdefault("patterns", {})
-    # Extract significant keywords
-    words = set(re.findall(r"[\w\u4e00-\u9fff]{2,}", message_text.lower()))
-    for w in words:
-        if w not in patterns:
-            patterns[w] = {"local": 0, "remote": 0}
-        patterns[w][corrected_tier] = patterns[w].get(corrected_tier, 0) + 1
-
-    _save_history(data)
-
-
 # ── Public API ──────────────────────────────────────────────
-
-
-def _get_ollama_base_urls() -> list[str]:
-    """Derive Ollama base URLs from config, with localhost fallback."""
-    config_path = Path.home() / ".hermes" / "config.yaml"
-    urls = []
-    try:
-        import yaml
-        with open(config_path) as f:
-            cfg = yaml.safe_load(f) or {}
-        base_url = (cfg.get("model") or {}).get("base_url", "")
-        if base_url:
-            raw = base_url.rstrip("/")
-            if raw.endswith("/v1"):
-                raw = raw[:-3]
-            urls.append(raw)
-    except Exception:
-        pass
-    urls.append("http://localhost:11434")
-    return urls
-
-
-def _check_ollama() -> bool:
-    """Quick check if any Ollama instance is reachable."""
-    for url in _get_ollama_base_urls():
-        try:
-            import urllib.request
-            req = urllib.request.Request(f"{url}/api/tags", method="GET")
-            with urllib.request.urlopen(req, timeout=2) as resp:
-                return resp.status == 200
-        except Exception:
-            continue
-    return False
 
 
 def get_routing_status(active_profile: Optional[dict] = None) -> dict:

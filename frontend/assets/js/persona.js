@@ -3,6 +3,7 @@
  * Persona loading, saving, avatar helpers, and UI updates.
  * Window-exported for HTML onclick compatibility.
  */
+const App = globalThis.App = globalThis.App || {};
 
 import { apiFetch, apiUrl } from './api.js';
 import { state } from './state.js';
@@ -231,11 +232,20 @@ export function toggleLanguage() {
 // ── Window Exports ──────────────────────────────────────────────
 
 window.makeAvatarImg = makeAvatarImg;
+App.makeAvatarImg = makeAvatarImg;
 window.makeUserAvatarImg = makeUserAvatarImg;
+App.makeUserAvatarImg = makeUserAvatarImg;
 window.updateUIFromPersona = updateUIFromPersona;
+App.updateUIFromPersona = updateUIFromPersona;
 window.loadPersona = loadPersona;
+App.loadPersona = loadPersona;
 window.savePersonaToServer = savePersonaToServer;
+App.savePersonaToServer = savePersonaToServer;
 window.switchIdentityTab = switchIdentityTab;
+App.switchIdentityTab = switchIdentityTab;
 window.applyLanguage = applyLanguage;
+App.applyLanguage = applyLanguage;
 window.toggleLanguage = toggleLanguage;
+App.toggleLanguage = toggleLanguage;
 window.translations = translations;
+App.translations = translations;

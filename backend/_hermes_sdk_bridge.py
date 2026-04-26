@@ -17,11 +17,12 @@ import logging
 import time
 import uuid
 from concurrent.futures import ThreadPoolExecutor
+from pathlib import Path
 from typing import Any, AsyncGenerator, Dict, Optional
 
 import yaml
 
-logger = logging.getLogger("hermes_webui.sdk_bridge")
+logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
 # Event types pushed to the SSE queue
@@ -80,13 +81,125 @@ _executor = ThreadPoolExecutor(max_workers=4, thread_name_prefix="hermes-sdk")
 
 
 class HermesSDKBridge:
-    """Manages one active AIAgent conversation per session."""
+    """Manages one active AIAgent conversation per session.
+
+    Also exposes Hermes environment helpers (skills, memory, config) consumed
+    by routers that migrated from the old subprocess bridge.
+    """
 
     def __init__(self):
         self._abort_event: Optional[asyncio.Event] = None
         self._active_task_id: Optional[str] = None
 
-    # ── Public API ──────────────────────────────────────────────────────
+    # ── Hermes environment helpers (filesystem / config) ─────────────────
+
+    @property
+    def hermes_dir(self) -> Path:
+        """~/.hermes/"""
+        return Path.home() / ".hermes"
+
+    @property
+    def skills_dir(self) -> Path:
+        """~/.hermes/skills/"""
+        return self.hermes_dir / "skills"
+
+    @property
+    def memories_dir(self) -> Path:
+        """~/.hermes/memories/ (also legacy ~/.hermes/ for SOUL.md)"""
+        return self.hermes_dir / "memories"
+
+    def _load_cfg(self) -> dict:
+        return _load_hermes_config()
+
+    def get_skills(self) -> list[dict]:
+        """Scan ~/.hermes/skills/ and return a list of skill info dicts."""
+        skills = []
+        sd = self.skills_dir
+        if not sd.is_dir():
+            return skills
+        for child in sorted(sd.iterdir()):
+            if not child.is_dir() or child.name.startswith("."):
+                continue
+            info: dict[str, Any] = {"id": child.name, "name": child.name}
+            # Read description from SKILL.md frontmatter
+            skill_md = child / "SKILL.md"
+            if skill_md.exists():
+                text = skill_md.read_text(encoding="utf-8", errors="replace")
+                for line in text.splitlines():
+                    if line.startswith("description:"):
+                        info["description"] = line[len("description:"):].strip().strip('"').strip("'")
+                        break
+            manifest = child / "hermes_skill.json"
+            if manifest.exists():
+                try:
+                    meta = json.loads(manifest.read_text(encoding="utf-8"))
+                    if "id" in meta:
+                        info["id"] = meta["id"]
+                    if "name" in meta:
+                        info["name"] = meta["name"]
+                    if "description" in meta:
+                        info["description"] = meta.get("description", info.get("description", ""))
+                except Exception:
+                    pass
+            skills.append(info)
+        return skills
+
+    @staticmethod
+    def _memory_file_path(name: str) -> Optional[Path]:
+        """Resolve SOUL.md / MEMORY.md / USER.md to its on-disk path."""
+        name = name.strip()
+        hermes = Path.home() / ".hermes"
+        if name == "SOUL.md":
+            return hermes / "SOUL.md"
+        # MEMORY.md / USER.md live under .hermes/memories/
+        memories = hermes / "memories"
+        if name in ("MEMORY.md", "USER.md"):
+            return memories / name
+        return None
+
+    def get_all_memories(self) -> dict:
+        """Return content of all recognised memory files."""
+        result: dict[str, str] = {}
+        for fname in ("SOUL.md", "MEMORY.md", "USER.md"):
+            fpath = self._memory_file_path(fname)
+            if fpath and fpath.exists():
+                result[fname] = fpath.read_text(encoding="utf-8", errors="replace")
+            else:
+                result[fname] = ""
+        return result
+
+    def read_memory(self, name: str) -> str:
+        """Read a single memory file. Returns empty string if missing."""
+        fpath = self._memory_file_path(name)
+        if fpath and fpath.exists():
+            return fpath.read_text(encoding="utf-8", errors="replace")
+        return ""
+
+    def write_memory(self, name: str, content: str) -> bool:
+        """Write content to a memory file. Returns True on success."""
+        fpath = self._memory_file_path(name)
+        if not fpath:
+            logger.warning("Unknown memory file: %s", name)
+            return False
+        fpath.parent.mkdir(parents=True, exist_ok=True)
+        try:
+            fpath.write_text(content, encoding="utf-8")
+            return True
+        except OSError as exc:
+            logger.error("Failed to write memory %s: %s", name, exc)
+            return False
+
+    def get_ollama_url(self) -> str:
+        """Return the configured Ollama base URL."""
+        cfg = self._load_cfg()
+        return cfg.get("model", {}).get("base_url", "http://localhost:11434")
+
+    def get_default_model(self) -> str:
+        """Return the configured default model name."""
+        cfg = self._load_cfg()
+        return cfg.get("model", {}).get("default", "")
+
+    # ── Public API (conversation) ───────────────────────────────────────
 
     def abort(self):
         """Signal the running conversation to stop."""
@@ -263,7 +376,6 @@ def _run_agent_in_thread(
     The Agent never sees raw base64 — only enriched text descriptions.
     """
     import base64
-    import mimetypes
     from pathlib import Path
 
     try:

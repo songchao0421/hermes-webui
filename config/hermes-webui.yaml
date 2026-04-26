@@ -1,23 +1,33 @@
-# Hermes WebUI - Configuration（马鞍配置文件）
-# Copy this to ~/.hermes-webui/config.yaml and customize
+# Hermes WebUI - Configuration
+# Copy this to ~/.hermes/hermes-webui/config.yaml and customize
+#
+# Priority: HERMES_WEBUI_HOME env var > ~/.hermes/hermes-webui/config.yaml > defaults
+#   Fallback: MAAN_HOME env var (v1.x compatibility)
 
-# Hermes home directory (auto-detected if not set)
+# Data directory override (default: auto-detect)
+#   Auto-detection chain: $HERMES_WEBUI_HOME > ~/.hermes/hermes-webui/ > ~/.hermes-webui/ (legacy)
+# data_dir: ~/.hermes/hermes-webui
+
+# Hermes CLI home (auto-detected from PATH / common install locations)
 # hermes_home: ~/.hermes
 
 # Server settings
 server:
   host: 0.0.0.0
-  port: 8080
+  port: 18765
 
-# Ollama settings (auto-read from Hermes config if not set)
+# Ollama settings (auto-detected if not set)
 # ollama_url: http://localhost:11434
 
 # Default model (auto-read from Hermes config if not set)
-# default_model: gemma3:12b
+# default_model: qwen2.5:14b
+
+# Upload temp directory (default: /tmp/hermes-webui-uploads)
+# upload_dir: /tmp/hermes-webui-uploads
 
 # Agent personalization
 # These can also be set via the WebUI onboarding wizard or Settings page.
-# The WebUI stores persona data in ~/.hermes-webui/persona.json
+# The WebUI stores persona data in ~/.hermes/hermes-webui/persona.json
 # persona:
 #   agent_name: "Atlas"        # Any characters, emoji supported
 #   agent_subtitle: "Local Intelligence"

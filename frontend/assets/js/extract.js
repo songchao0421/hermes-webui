@@ -3,6 +3,7 @@
  * Memory extraction + utility helpers.
  * Window-exported for HTML onclick compatibility.
  */
+const App = globalThis.App = globalThis.App || {};
 
 import { apiFetch, apiUrl } from './api.js';
 import { state } from './state.js';
@@ -180,13 +181,25 @@ export function setupKeyboardShortcuts() {
 // ── Window Exports ──────────────────────────────────────────────
 
 window.extractMemory = extractMemory;
+App.extractMemory = extractMemory;
 window.openUploadDialog = openUploadDialog;
+App.openUploadDialog = openUploadDialog;
 window.closeUploadDialog = closeUploadDialog;
+App.closeUploadDialog = closeUploadDialog;
 window.openAvatarDialog = openAvatarDialog;
+App.openAvatarDialog = openAvatarDialog;
 window.closeAvatarDialog = closeAvatarDialog;
+App.closeAvatarDialog = closeAvatarDialog;
 window.openDialog = openDialog;
+App.openDialog = openDialog;
 window.closeDialog = closeDialog;
+App.closeDialog = closeDialog;
 window.openExtractModal = openExtractModal;
+App.openExtractModal = openExtractModal;
 window.initNotifications = initNotifications;
+App.initNotifications = initNotifications;
 window.sendNotification = sendNotification;
+App.sendNotification = sendNotification;
 window.setupKeyboardShortcuts = setupKeyboardShortcuts;
+App.setupKeyboardShortcuts = setupKeyboardShortcuts;
+App.extractFromDialog = window.extractFromDialog;

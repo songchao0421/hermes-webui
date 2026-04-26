@@ -3,6 +3,7 @@
  * Settings panel: persona form, avatar uploads, theme/color picker, config.
  * Window-exported for HTML onclick compatibility.
  */
+const App = globalThis.App = globalThis.App || {};
 
 import { apiFetch, apiUrl } from './api.js';
 import { state } from './state.js';
@@ -116,6 +117,10 @@ export function uploadUserAvatar(event) {
 let themePresets = {};
 
 export function selectTheme(preset) {
+    // Accept both string preset name and DOM element
+    if (preset?.dataset?.preset) {
+        preset = preset.dataset.preset;
+    }
     document.querySelectorAll('#settingsThemePicker .theme-swatch').forEach(s => {
         s.classList.toggle('selected', s.dataset.preset === preset);
     });
@@ -227,14 +232,9 @@ export function hideApiKeys() {
 
 // ── Support Modal ───────────────────────────────────────────────
 
-export function showSupportModal() {
-    const modal = document.getElementById('supportModal');
-    if (modal) modal.classList.remove('hidden');
-}
-
 export function hideSupportModal() {
     const modal = document.getElementById('supportModal');
-    if (modal) modal.classList.add('hidden');
+    if (modal) modal.classList.remove('active');
 }
 
 export function closeSupportModal() {
@@ -244,19 +244,235 @@ export function closeSupportModal() {
 // ── Window Exports ──────────────────────────────────────────────
 
 window.saveSettings = saveSettings;
+App.saveSettings = saveSettings;
 window.uploadAgentAvatar = uploadAgentAvatar;
+App.uploadAgentAvatar = uploadAgentAvatar;
 window.uploadUserAvatar = uploadUserAvatar;
+App.uploadUserAvatar = uploadUserAvatar;
 window.selectTheme = selectTheme;
+App.selectTheme = selectTheme;
 window.saveRoutingConfig = saveRoutingConfig;
+App.saveRoutingConfig = saveRoutingConfig;
 window.showApiKeys = showApiKeys;
+App.showApiKeys = showApiKeys;
 window.toggleApiKeyVisibility = toggleApiKeyVisibility;
+App.toggleApiKeyVisibility = toggleApiKeyVisibility;
 window.saveApiKeys = saveApiKeys;
+App.saveApiKeys = saveApiKeys;
 window.hideApiKeys = hideApiKeys;
-window.showSupportModal = showSupportModal;
-window.hideSupportModal = hideSupportModal;
+App.hideApiKeys = hideApiKeys;
 window.closeSupportModal = closeSupportModal;
+App.closeSupportModal = closeSupportModal;
+window.hideSupportModal = hideSupportModal;
+App.hideSupportModal = hideSupportModal;
 window.handleSettingsAvatar = handleSettingsAvatar;
+App.handleSettingsAvatar = handleSettingsAvatar;
 window.handleUserAvatar = handleUserAvatar;
+App.handleUserAvatar = handleUserAvatar;
 
 // ── HTML onclick aliases ─────────────────────────────────────────
 window.selectSettingsTheme = selectTheme;
+App.selectSettingsTheme = selectTheme;
+
+// ── Update / Self-Upgrade ────────────────────────────────────
+
+/**
+ * Refresh version display when Support modal opens.
+ * Override existing showSupportModal to add auto-check.
+ */
+export function showSupportModal() {
+    const modal = document.getElementById('supportModal');
+    if (modal) modal.classList.add('active');
+    refreshVersion();
+}
+window.showSupportModal = showSupportModal;
+App.showSupportModal = showSupportModal;
+
+export async function refreshVersion() {
+    try {
+        const data = await checkUpdate();
+        const el = document.getElementById('localVersion');
+        if (el) {
+            el.textContent = data.local_commit
+                ? data.local_commit + (data.has_update ? ' (update available)' : ' (latest)')
+                : 'unknown';
+        }
+    } catch {
+        const el = document.getElementById('localVersion');
+        if (el) el.textContent = 'unavailable';
+    }
+}
+
+window.handleCheckUpdate = handleCheckUpdate;
+App.handleCheckUpdate = handleCheckUpdate;
+async function handleCheckUpdate() {
+    const btn = document.getElementById('checkUpdateBtn');
+    const applyBtn = document.getElementById('applyUpdateBtn');
+    const status = document.getElementById('updateStatus');
+    const statusMsg = document.getElementById('updateStatusMsg');
+    const statusIcon = document.getElementById('updateStatusIcon');
+
+    // Loading state
+    btn.disabled = true;
+    btn.innerHTML = '<span class="material-symbols-outlined text-sm animate-spin">sync</span> Checking...';
+    status.classList.remove('hidden');
+    statusMsg.textContent = 'Checking for updates...';
+    statusIcon.textContent = 'sync';
+    statusIcon.className = 'material-symbols-outlined text-sm text-on-surface-variant/60 animate-spin';
+
+    try {
+        const data = await checkUpdate();
+
+        if (data.error) {
+            statusIcon.textContent = 'error';
+            statusIcon.className = 'material-symbols-outlined text-sm text-error';
+            statusMsg.textContent = 'Error: ' + data.error;
+            applyBtn.disabled = true;
+        } else if (data.has_update) {
+            statusIcon.textContent = 'new_releases';
+            statusIcon.className = 'material-symbols-outlined text-sm text-[#f0c040]';
+            statusMsg.innerHTML = `Update available: <strong>${data.remote_commit}</strong> — ${data.remote_message}`;
+            applyBtn.disabled = false;
+        } else {
+            statusIcon.textContent = 'check_circle';
+            statusIcon.className = 'material-symbols-outlined text-sm text-[#6abf69]';
+            statusMsg.textContent = data.local_commit
+                ? `Latest (${data.local_commit})`
+                : 'Up to date';
+            applyBtn.disabled = true;
+        }
+    } catch (e) {
+        statusIcon.textContent = 'error';
+        statusIcon.className = 'material-symbols-outlined text-sm text-error';
+        statusMsg.textContent = 'Network error: ' + e.message;
+        applyBtn.disabled = true;
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = '<span class="material-symbols-outlined text-sm">sync</span> Check for Updates';
+    }
+}
+
+window.handleApplyUpdate = handleApplyUpdate;
+App.handleApplyUpdate = handleApplyUpdate;
+async function handleApplyUpdate() {
+    const checkBtn = document.getElementById('checkUpdateBtn');
+    const applyBtn = document.getElementById('applyUpdateBtn');
+    const status = document.getElementById('updateStatus');
+    const statusMsg = document.getElementById('updateStatusMsg');
+    const statusIcon = document.getElementById('updateStatusIcon');
+    const logEl = document.getElementById('updateLog');
+    const countdown = document.getElementById('restartCountdown');
+
+    // Disable both buttons
+    checkBtn.disabled = true;
+    applyBtn.disabled = true;
+    applyBtn.innerHTML = '<span class="material-symbols-outlined text-sm animate-spin">sync</span> Updating...';
+
+    // Show log area
+    logEl.classList.remove('hidden');
+    logEl.innerHTML = '';
+    statusIcon.textContent = 'downloading';
+    statusIcon.className = 'material-symbols-outlined text-sm text-[#f0c040] animate-spin';
+    statusMsg.textContent = 'Updating...';
+
+    try {
+        const response = await applyUpdate();
+        if (!response.ok) {
+            const err = await response.json().catch(() => ({ detail: response.statusText }));
+            appendLog(logEl, `[ERROR] ${err.detail || 'Request failed'}`);
+            statusIcon.textContent = 'error';
+            statusIcon.className = 'material-symbols-outlined text-sm text-error';
+            statusMsg.textContent = 'Update failed';
+            enableButtons(checkBtn, applyBtn);
+            return;
+        }
+
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
+
+        while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+
+            buffer += decoder.decode(value, { stream: true });
+            const lines = buffer.split('\n\n');
+            buffer = lines.pop() || '';
+
+            for (const line of lines) {
+                if (!line.startsWith('data: ')) continue;
+                try {
+                    const data = JSON.parse(line.slice(6));
+
+                    if (data.log) {
+                        appendLog(logEl, data.log);
+                    }
+
+                    if (data.error) {
+                        appendLog(logEl, `[ERROR] ${data.error}`);
+                        statusIcon.textContent = 'error';
+                        statusIcon.className = 'material-symbols-outlined text-sm text-error';
+                        statusMsg.textContent = 'Update failed';
+                        enableButtons(checkBtn, applyBtn);
+                        return;
+                    }
+
+                    if (data.restart) {
+                        statusIcon.textContent = 'restart_alt';
+                        statusIcon.className = 'material-symbols-outlined text-sm text-primary';
+                        statusMsg.textContent = 'Restarting...';
+                        countdown.classList.remove('hidden');
+                        // Page will automatically refresh after restart
+                        // Poll until server is back up
+                        pollServer(data.host || 'localhost', data.port || 8080);
+                        return;
+                    }
+                } catch {
+                    // skip unparseable lines
+                }
+            }
+        }
+    } catch (e) {
+        appendLog(logEl, `[ERROR] ${e.message}`);
+        statusIcon.textContent = 'error';
+        statusIcon.className = 'material-symbols-outlined text-sm text-error';
+        statusMsg.textContent = 'Connection lost during update';
+        enableButtons(checkBtn, applyBtn);
+    }
+}
+
+function appendLog(el, text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    el.appendChild(div);
+    el.scrollTop = el.scrollHeight;
+}
+
+function enableButtons(checkBtn, applyBtn) {
+    checkBtn.disabled = false;
+    applyBtn.disabled = true;
+    applyBtn.innerHTML = '<span class="material-symbols-outlined text-sm">system_update</span> Update & Restart';
+}
+
+function pollServer(host, port, attempt = 0) {
+    const maxAttempts = 30;
+    const wait = attempt === 0 ? 2000 : 1000;
+    setTimeout(async () => {
+        try {
+            const resp = await fetch(`http://${host}:${port}/api/update/check`);
+            if (resp.ok) {
+                // Server is back — reload the page
+                window.location.reload();
+                return;
+            }
+        } catch {
+            // server not up yet
+        }
+        if (attempt < maxAttempts) {
+            pollServer(host, port, attempt + 1);
+        } else {
+            document.getElementById('restartCountdown').textContent =
+                'Server took too long to restart. Please refresh the page manually.';
+        }
+    }, wait);
+}

@@ -1,5 +1,5 @@
 """
-Rate Limiting Module (Ma'an)
+Rate Limiting Module (Hermes WebUI)
 
 Replaces the old slowapi Limiter._dependency() pattern which was removed in slowapi>=0.1.9.
 Provides fastapi.Depends-compatible callables for per-route rate limiting using the 

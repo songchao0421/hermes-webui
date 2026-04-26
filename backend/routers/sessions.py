@@ -1,5 +1,5 @@
 """
-马鞍 (Ma'an) — Sessions Router
+Hermes WebUI — Sessions Router
 Conversation session management.
 """
 from datetime import datetime

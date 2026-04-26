@@ -3,6 +3,7 @@
  * Session management: list, create, switch, delete sessions + tab switching.
  * Window-exported for HTML onclick compatibility.
  */
+const App = globalThis.App = globalThis.App || {};
 
 import { apiFetch, apiUrl } from './api.js';
 import { state, setState } from './state.js';
@@ -245,14 +246,26 @@ export function toggleMobileNav() {
 // ── Window Exports ──────────────────────────────────────────────
 
 window.switchTab = switchTab;
+App.switchTab = switchTab;
 window.loadSessionList = loadSessionList;
+App.loadSessionList = loadSessionList;
 window.renderSessionList = renderSessionList;
+App.renderSessionList = renderSessionList;
 window.newSession = newSession;
+App.newSession = newSession;
 window.switchSession = switchSession;
+App.switchSession = switchSession;
 window.deleteSessionConfirm = deleteSessionConfirm;
+App.deleteSessionConfirm = deleteSessionConfirm;
 window.deleteSession = deleteSession;
+App.deleteSession = deleteSession;
 window.loadChatHistory = loadChatHistory;
+App.loadChatHistory = loadChatHistory;
 window.renderChatHistory = renderChatHistory;
+App.renderChatHistory = renderChatHistory;
 window.clearChatContainer = clearChatContainer;
+App.clearChatContainer = clearChatContainer;
 window.filterSessions = filterSessions;
+App.filterSessions = filterSessions;
 window.toggleMobileNav = toggleMobileNav;
+App.toggleMobileNav = toggleMobileNav;

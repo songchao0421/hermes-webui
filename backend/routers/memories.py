@@ -1,5 +1,5 @@
 """
-马鞍 (Ma'an) — Memories Router
+Hermes WebUI — Memories Router
 Manage memory files (SOUL.md, MEMORY.md, USER.md).
 """
 import json
@@ -8,7 +8,7 @@ from datetime import datetime
 
 import httpx
 from fastapi import APIRouter, HTTPException, Request
-from fastapi.responses import JSONResponse
+from services.ollama_service import get_ollama_models_async
 
 router = APIRouter(tags=["memories"])
 
@@ -98,14 +98,9 @@ Rules:
     ollama_url = _bridge.get_ollama_url()
     model = _bridge.get_default_model() or ""
     if not model:
-        try:
-            async with httpx.AsyncClient(timeout=5) as client:
-                r = await client.get(f"{ollama_url}/api/tags")
-                models = r.json().get("models", []) if r.status_code == 200 else []
-                if models:
-                    model = models[0]["name"]
-        except Exception:
-            pass
+        models = await get_ollama_models_async()
+        if models:
+            model = models[0]
 
     if not model:
         return {"suggestions": [], "message": "No AI model available for extraction"}

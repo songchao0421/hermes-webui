@@ -14,10 +14,12 @@ import copy
 import logging
 from pathlib import Path
 
-logger = logging.getLogger("hermes_webui")
+logger = logging.getLogger(__name__)
 
 # ── Config File Path ─────────────────────────────────────────────
-CONFIG_DIR = Path.home() / ".hermes"
+from config import HERMES_HOME_DIR
+
+CONFIG_DIR = HERMES_HOME_DIR
 WEBUI_CONFIG_FILE = CONFIG_DIR / "webui_config.json"
 
 # ── Default Config ───────────────────────────────────────────────

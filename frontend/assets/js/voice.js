@@ -4,6 +4,7 @@
  * recording indicator, auto-send on release.
  * Exports to window for HTML onclick compatibility.
  */
+const App = globalThis.App = globalThis.App || {};
 import { state } from './state.js';
 import { showToast } from './utils.js';
 
@@ -156,5 +157,8 @@ export function voicePressEnd(event) {
 
 // ── Window exports ──────────────────────────────────────────
 window.toggleVoiceInput = toggleVoiceInput;
+App.toggleVoiceInput = toggleVoiceInput;
 window.voicePressStart = voicePressStart;
+App.voicePressStart = voicePressStart;
 window.voicePressEnd = voicePressEnd;
+App.voicePressEnd = voicePressEnd;

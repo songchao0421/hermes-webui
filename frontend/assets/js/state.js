@@ -8,6 +8,7 @@
  * shared across modules. Provides a single point for future logging,
  * validation, or reactive hooks without requiring a full rewrite.
  */
+const App = globalThis.App = globalThis.App || {};
 
 // ── The State Object ────────────────────────────────────────────
 // All mutable application state lives here as properties.
@@ -83,7 +84,7 @@ function setState(key, value) {
 
 export { state, setState };
 
-// ── Window Exports (for HTML onclick compatibility) ─────────────
+// ── Window & App Exports ────────────────────────────────────────
 
 window.state = state;
 // Also export individual variables for inline onclick code that references them directly
@@ -94,3 +95,13 @@ window.isProcessing = () => state.isProcessing;
 window.HERMES_AVAILABLE = state.HERMES_AVAILABLE;
 window.currentAgentJobId = () => state.currentAgentJobId;
 window.abortController = () => state.abortController;
+
+// ── App namespace sync ──────────────────────────────────────────
+App.state = state;
+Object.defineProperty(App, 'persona', { get: () => state.persona });
+Object.defineProperty(App, 'currentModel', { get: () => state.currentModel });
+Object.defineProperty(App, 'currentSessionId', { get: () => state.currentSessionId });
+Object.defineProperty(App, 'isProcessing', { get: () => state.isProcessing });
+Object.defineProperty(App, 'HERMES_AVAILABLE', { get: () => state.HERMES_AVAILABLE });
+Object.defineProperty(App, 'currentAgentJobId', { get: () => state.currentAgentJobId });
+Object.defineProperty(App, 'abortController', { get: () => state.abortController });

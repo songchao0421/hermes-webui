@@ -240,15 +240,31 @@ textarea:focus { outline: none; }
 
 /* ── Mobile responsive ──────────────────────────────────────────── */
 @media (max-width: 768px) {
+    html { overflow-x: hidden; }
+    
     #sideNav { transform: translateX(-100%); transition: transform 0.3s cubic-bezier(0.4,0,0.2,1); }
     #sideNav.mobile-open { transform: translateX(0); }
+    
     #tabChat, #tabSkills, #tabMemory, #tabSettings { margin-left: 0 !important; }
-    #topBar { left: 0 !important; }
+    #tabSkills > section, #tabMemory > div { padding-left: 1rem !important; padding-right: 1rem !important; }
+    
+    #topBar { left: 0 !important; padding-left: 1rem !important; padding-right: 1rem !important; }
+    
+    /* Bottom gradient decoration also needs reset from left-[256px] */
+    #bottomGradient { left: 0 !important; right: 0 !important; width: 100vw; }
+    
     #mobileMenuBtn { display: flex !important; }
     #sideNavOverlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.55); z-index: 99; }
     #sideNavOverlay.active { display: block; }
-    header { padding-left: 1rem !important; padding-right: 1rem !important; }
+    
     .message-bubble { max-width: 95% !important; }
+    
+    /* Prevent horizontal scroll on chat input area */
+    #inputArea { max-width: 100vw !important; padding-left: 1rem !important; padding-right: 1rem !important; }
+    #tabChat, #tabSkills, #tabMemory, #tabSettings { max-width: 100vw; }
+    
+    /* Chat container on mobile */
+    #chatContainer { padding-left: 1rem !important; padding-right: 1rem !important; }
 }
 @media (min-width: 769px) {
     #mobileMenuBtn { display: none !important; }

@@ -18,11 +18,11 @@ from ratelimit import RateLimitExceeded, rate_limit_exceeded_handler
 from services.static_files import NoCacheStaticFiles
 from services.session_manager import (
     conversations, current_session_id, save_session, load_all_sessions,
-    get_session_lock, load_session as load_session_fn,
+    load_session as load_session_fn,
     _evict_old_sessions,
 )
 
-logger = logging.getLogger("hermes_webui")
+logger = logging.getLogger(__name__)
 logging.basicConfig(
     level=logging.INFO,
     format="[%(asctime)s] [%(levelname)s] [%(name)s] %(message)s",
@@ -64,6 +64,7 @@ async def lifespan(app: FastAPI):
     _agent._WSL_MODE = WSL_MODE
 
     import routers.memories as _mem
+    _mem._bridge = _agent._bridge  # share the same SDK bridge instance
     _mem._current_session_id = current_session_id
     _mem._conversations = conversations
     _mem._get_memory_snapshots_dir = get_memory_snapshots_dir
@@ -76,17 +77,21 @@ async def lifespan(app: FastAPI):
     _sess._load_session = load_session_fn
     _sess._evict_old_sessions = _evict_old_sessions
 
-    import routers.skills as _sk
+    from services.skill_service import SkillService
     from services.webui_config import load_webui_config, save_webui_config
-    _sk._load_webui_config = load_webui_config
-    _sk._save_webui_config = save_webui_config
+    import routers.skills as _sk
+    import routers.agent as _agent_bridge
+    _sk._service = SkillService(_agent_bridge._bridge, load_webui_config, save_webui_config)
 
     # ── Inject persona paths ──
-    import services.persona_service as _ps
+    from services.persona_service import PersonaService
     from config import get_persona_dir, get_persona_file, get_avatar_dir
-    _ps.PERSONA_DIR = get_persona_dir()
-    _ps.PERSONA_FILE = get_persona_file()
-    _ps.AVATAR_DIR = get_avatar_dir()
+    import routers.persona as _pa
+    _pa._service = PersonaService(
+        persona_dir=get_persona_dir(),
+        persona_file=get_persona_file(),
+        avatar_dir=get_avatar_dir(),
+    )
 
     # ── Initialize Model Switch Service ──
     import services.model_switch as _ms
@@ -101,8 +106,8 @@ async def lifespan(app: FastAPI):
     logger.info("=" * 60)
     logger.info("  Hermes WebUI — Agent Console")
     logger.info("=" * 60)
-    logger.info(f"  Sessions  : {len(conversations)} loaded")
-    logger.info(f"  Auth      : {'disabled' if not is_auth_enabled() else 'enabled'}")
+    logger.info("  Sessions  : %d loaded", len(conversations))
+    logger.info("  Auth      : %s", "disabled" if not is_auth_enabled() else "enabled")
     logger.info("=" * 60)
 
     yield
@@ -135,6 +140,7 @@ from routers.agent import router as agent_router
 from routers.memories import router as memories_router
 from routers.sessions import router as sessions_router
 from routers.skills import router as skills_router
+from routers.onboarding import router as onboarding_router
 from ratelimit import limit_10_per_minute
 
 app.include_router(persona_router)
@@ -143,6 +149,7 @@ app.include_router(memories_router)
 app.include_router(skills_router)
 app.include_router(sessions_router)
 app.include_router(agent_router)
+app.include_router(onboarding_router)
 
 # ── Rate-limit late-binding ──
 memories_router.routes[-2].dependencies = [Depends(limit_10_per_minute)]

@@ -5,6 +5,7 @@
  *
  * Imported dynamically by chat.js via tool_panel.js API.
  */
+const App = globalThis.App = globalThis.App || {};
 
 // ── State ────────────────────────────────────────────────────────
 
@@ -156,3 +157,4 @@ function escapeHtml(str) {
 // ── Window export ────────────────────────────────────────────────
 
 window.createToolPanel = createToolPanel;
+App.createToolPanel = createToolPanel;

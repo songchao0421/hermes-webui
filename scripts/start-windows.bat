@@ -139,7 +139,7 @@ if %errorlevel% equ 0 (
     echo     OK: Hermes SDK ready
 ) else (
     echo     Hermes SDK not found. Installing...
-    wsl -- bash -lc "pip3 install hermes-agent --user -q -i https://pypi.tuna.tsinghua.edu.cn/simple 2>/dev/null || pip3 install hermes-agent --user -q"
+    wsl -- bash -lc "pip3 install hermes-agent --user -q --break-system-packages -i https://pypi.tuna.tsinghua.edu.cn/simple 2>/dev/null || pip3 install hermes-agent --user -q --break-system-packages"
     if %errorlevel% equ 0 ( echo     OK: Hermes SDK installed ) else (
         echo     WARNING: Install failed. Agent mode limited.
     )

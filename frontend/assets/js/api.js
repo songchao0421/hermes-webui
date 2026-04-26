@@ -3,6 +3,7 @@
  * Centralized API calls with auth token injection.
  * Dropped: model listing, routing, plain chat, update checks.
  */
+const App = globalThis.App = globalThis.App || {};
 import { escapeHtml, showToast } from './utils.js';
 import { state } from './state.js';
 
@@ -31,12 +32,30 @@ function authHeaders(extra = {}) {
 
 export async function apiFetch(url, options = {}) {
     options.headers = authHeaders(options.headers || {});
-    const resp = await fetch(url, options);
-    if (resp.status === 401) {
-        window.dispatchEvent(new CustomEvent('auth-required'));
-        throw new Error('Authentication required');
+    try {
+        const resp = await fetch(url, options);
+        if (resp.status === 401) {
+            window.dispatchEvent(new CustomEvent('auth-required'));
+            throw new Error('Authentication required');
+        }
+        if (!resp.ok) {
+            const errBody = await resp.json().catch(() => ({}));
+            const detail = errBody.detail || errBody.error || resp.statusText;
+            window.dispatchEvent(new CustomEvent('api-error', {
+                detail: { message: detail, status: resp.status, url },
+            }));
+            throw new Error(detail);
+        }
+        return resp;
+    } catch (e) {
+        if (e.name === 'TypeError' && e.message.includes('fetch')) {
+            // Network error — server unreachable
+            window.dispatchEvent(new CustomEvent('api-error', {
+                detail: { message: '无法连接服务器，请检查后端是否运行', status: 0, url },
+            }));
+        }
+        throw e; // let callers also handle it
     }
-    return resp;
 }
 
 export function showAuthModal() {
@@ -238,32 +257,59 @@ export async function discoverModels() {
 }
 
 window.apiUrl = apiUrl;
+App.apiUrl = apiUrl;
 window.apiFetch = apiFetch;
+App.apiFetch = apiFetch;
 window.getAuthToken = getAuthToken;
+App.getAuthToken = getAuthToken;
 window.setAuthToken = setAuthToken;
+App.setAuthToken = setAuthToken;
 window.showAuthModal = showAuthModal;
+App.showAuthModal = showAuthModal;
 window.hideAuthModal = hideAuthModal;
+App.hideAuthModal = hideAuthModal;
 window.submitAuthToken = submitAuthToken;
+App.submitAuthToken = submitAuthToken;
 window.getPersona = getPersona;
+App.getPersona = getPersona;
 window.updatePersona = updatePersona;
+App.updatePersona = updatePersona;
 window.uploadAvatar = uploadAvatar;
+App.uploadAvatar = uploadAvatar;
 window.agentStream = agentStream;
+App.agentStream = agentStream;
 window.agentAbort = agentAbort;
+App.agentAbort = agentAbort;
 window.getMemories = getMemories;
+App.getMemories = getMemories;
 window.updateMemory = updateMemory;
+App.updateMemory = updateMemory;
 window.getSkills = getSkills;
+App.getSkills = getSkills;
 window.importSkillZip = importSkillZip;
+App.importSkillZip = importSkillZip;
 window.getSessions = getSessions;
+App.getSessions = getSessions;
 window.createSession = createSession;
+App.createSession = createSession;
 window.deleteSession = deleteSession;
+App.deleteSession = deleteSession;
 window.getSessionMessages = getSessionMessages;
+App.getSessionMessages = getSessionMessages;
 window.sessionUndo = sessionUndo;
+App.sessionUndo = sessionUndo;
 window.sessionRetry = sessionRetry;
+App.sessionRetry = sessionRetry;
 window.sessionRename = sessionRename;
+App.sessionRename = sessionRename;
 window.getModelProfiles = getModelProfiles;
+App.getModelProfiles = getModelProfiles;
 window.switchModel = switchModel;
+App.switchModel = switchModel;
 window.getActiveModel = getActiveModel;
+App.getActiveModel = getActiveModel;
 window.discoverModels = discoverModels;
+App.discoverModels = discoverModels;
 
 // ── Task Routing ────────────────────────────────────────────────
 
@@ -287,4 +333,29 @@ export async function correctRouting(originalTier, correctedTier, message) {
 }
 
 window.getRoutingStatus = getRoutingStatus;
+App.getRoutingStatus = getRoutingStatus;
 window.correctRouting = correctRouting;
+App.correctRouting = correctRouting;
+
+// ── Update (Self-Upgrade) ─────────────────────────────────────
+
+/**
+ * GET /api/update/check — check for new version on GitHub.
+ */
+export async function checkUpdate() {
+    const resp = await apiFetch(apiUrl('/api/update/check'));
+    return resp.json();
+}
+
+/**
+ * POST /api/update/apply — pull latest + install deps + restart.
+ * Returns an SSE stream. Caller must read the response body.
+ */
+export async function applyUpdate() {
+    return apiFetch(apiUrl('/api/update/apply'), { method: 'POST' });
+}
+
+window.checkUpdate = checkUpdate;
+App.checkUpdate = checkUpdate;
+window.applyUpdate = applyUpdate;
+App.applyUpdate = applyUpdate;

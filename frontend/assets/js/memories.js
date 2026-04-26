@@ -3,6 +3,7 @@
  * Memory management: list, search, create, edit, delete memories.
  * Window-exported for HTML onclick compatibility.
  */
+const App = globalThis.App = globalThis.App || {};
 
 import { apiFetch, apiUrl } from './api.js';
 import { escapeHtml, showToast } from './utils.js';
@@ -184,13 +185,24 @@ export function closeMemoryModal() {
 // ── Window Exports ──────────────────────────────────────────────
 
 window.loadMemories = loadMemories;
+App.loadMemories = loadMemories;
 window.renderMemories = renderMemories;
+App.renderMemories = renderMemories;
 window.searchMemory = searchMemory;
+App.searchMemory = searchMemory;
 window.showMemoryEditor = showMemoryEditor;
+App.showMemoryEditor = showMemoryEditor;
 window.hideMemoryEditor = hideMemoryEditor;
+App.hideMemoryEditor = hideMemoryEditor;
 window.saveMemory = saveMemory;
+App.saveMemory = saveMemory;
 window.deleteMemory = deleteMemory;
+App.deleteMemory = deleteMemory;
 window.editMemory = editMemory;
+App.editMemory = editMemory;
 window.refreshMemoryDebug = refreshMemoryDebug;
+App.refreshMemoryDebug = refreshMemoryDebug;
 window.snapshotMemory = snapshotMemory;
+App.snapshotMemory = snapshotMemory;
 window.closeMemoryModal = closeMemoryModal;
+App.closeMemoryModal = closeMemoryModal;
