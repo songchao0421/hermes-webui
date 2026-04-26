@@ -61,4 +61,4 @@ This skill is designed to evolve with experience. The "Experience Log" section i
 
 MIT — free to use, modify, and share.
 
-Built for [Hermes WebUI (Saddle)](https://github.com/songchao4218/hermes-webui) and the Zeroclaw ecosystem.
+Built for [Hermes WebUI (Saddle)](https://github.com/songchao0421/hermes-webui) and the Zeroclaw ecosystem.

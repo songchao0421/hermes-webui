@@ -1,6 +1,6 @@
 # Model Router Skill
 
-**Version:** 1.0.0 | **Author:** songchao4218 | **Repo:** https://github.com/songchao4218/hermes-webui
+**Version:** 1.0.0 | **Author:** songchao0421 | **Repo:** https://github.com/songchao0421/hermes-webui
 
 ---
 

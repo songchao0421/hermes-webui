@@ -3,8 +3,8 @@
   "name": "Model Router",
   "version": "1.0.0",
   "description": "Intelligent task routing between local Ollama models and cloud AI APIs. Saves cost by running simple tasks locally and routing complex tasks to stronger models.",
-  "author": "songchao4218",
-  "repo": "https://github.com/songchao4218/hermes-webui",
+  "author": "songchao0421",
+  "repo": "https://github.com/songchao0421/hermes-webui",
   "tags": ["routing", "cost-optimization", "multi-model", "auto"],
   "config_schema": {
     "local_model": {

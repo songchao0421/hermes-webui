@@ -25,7 +25,7 @@ model_switch = None
 
 router = APIRouter(tags=["system"])
 
-REPO_API = "https://api.github.com/repos/songchao4218/hermes-webui/commits/main"
+REPO_API = "https://api.github.com/repos/songchao0421/hermes-webui/commits/main"
 
 
 # ── Helpers ──────────────────────────────────────────────────────────
