@@ -23,6 +23,10 @@ export function switchTab(tab) {
         el.classList.toggle('active', el.dataset.tab === tab);
     });
 
+    // Hide input bar when not on chat tab
+    const inputBar = document.getElementById('inputBar');
+    if (inputBar) inputBar.classList.toggle('hidden', tab !== 'chat');
+
     // Load content on first access
     if (tab === 'skills') {
         const { loadSkills } = window.skillsModule || {};
