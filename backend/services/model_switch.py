@@ -16,29 +16,20 @@ import json
 import os
 import re
 import logging
-import shutil
-import tempfile
 from pathlib import Path
 from typing import Optional, Dict, Any, List
 
-logger = logging.getLogger("hermes_webui.model_switch")
+logger = logging.getLogger(__name__)
 
 # ── File Paths ──────────────────────────────────────────────────────
 CONFIG_DIR = Path.home() / ".hermes"
 PROFILES_FILE = CONFIG_DIR / "model_profiles.json"
 CONFIG_YAML = CONFIG_DIR / "config.yaml"
 
-# ── Ollama endpoints (auto-detect: Windows Ollama in WSL, then remote) ──
-_OLLAMA_CANDIDATES = []
-import socket as _socket
-for _ip in ["172.18.224.1", "192.168.1.12", "localhost", "host.docker.internal"]:
-    try:
-        _sock = _socket.create_connection((_ip, 11434), timeout=1)
-        _sock.close()
-        _OLLAMA_CANDIDATES.append(f"http://{_ip}:11434")
-    except Exception:
-        pass
-OLLAMA_BASE = _OLLAMA_CANDIDATES[0] if _OLLAMA_CANDIDATES else "http://192.168.1.12:11434"
+# ── Ollama endpoints (auto-detect via unified ollama_service) ──
+from services.ollama_service import get_ollama_base_url
+
+OLLAMA_BASE = get_ollama_base_url()
 OLLAMA_API = f"{OLLAMA_BASE}/v1"
 OLLAMA_TAGS = f"{OLLAMA_BASE}/api/tags"
 
@@ -81,7 +72,7 @@ def load_profiles() -> dict:
             if "profiles" in data:
                 return data
         except Exception as e:
-            logger.warning(f"Failed to load profiles: {e}")
+            logger.warning("Failed to load profiles: %s", e)
     return dict(DEFAULT_PROFILES)
 
 
@@ -104,7 +95,7 @@ def _read_config_yaml() -> Optional[str]:
     try:
         return CONFIG_YAML.read_text(encoding="utf-8")
     except Exception as e:
-        logger.error(f"Failed to read config.yaml: {e}")
+        logger.error("Failed to read config.yaml: %s", e)
         return None
 
 
@@ -129,21 +120,6 @@ def _update_vision_config(model_name: str = "qwen3.6:27b-q4_K_M"):
         return
 
     # Find the auxiliary.vision block boundaries and only replace inside it.
-    # The block looks like:
-    #     auxiliary:
-    #       vision:
-    #         provider: custom
-    #         model: 'qwen3.6:27b-q4_K_M'
-    #         base_url: 'http://...'
-    #         ...
-    #       web_extract:
-    #       compression:
-    #       ...
-    #
-    # All vision children are indented 4 spaces under "  vision:".
-    # We target lines matching "^    model:" and "^    base_url:" that appear
-    # right after "  vision:" — this is safe because only vision uses those
-    # exact indentation levels for model/base_url under auxiliary.
 
     lines = yaml_text.split("\n")
     new_lines = []
@@ -185,7 +161,7 @@ def _update_vision_config(model_name: str = "qwen3.6:27b-q4_K_M"):
     if changed:
         new_content = "\n".join(new_lines)
         _write_config_yaml(new_content)
-        logger.info(f"Vision config auto-updated: model={model_name}, base_url={base_url}")
+        logger.info("Vision config auto-updated: model=%s, base_url=%s", model_name, base_url)
     else:
         logger.debug("Vision config unchanged or vision block not found")
 
@@ -241,7 +217,7 @@ def _extract_yaml_value(text: str, section: str, key: str) -> Optional[str]:
         if stripped and not stripped.startswith(" ") and not stripped.startswith("\t"):
             if ":" in stripped:
                 break
-        m = re.match(r"^\s+{re.escape(key)}:\s*(.*?)$", stripped)
+        m = re.match(rf"^\s+{re.escape(key)}:\s*(.*?)$", stripped)
         if m:
             val = m.group(1).strip().strip("'\"").strip()
             return val if val else None
@@ -388,7 +364,7 @@ async def discover_ollama_models() -> List[dict]:
         async with httpx.AsyncClient(timeout=5) as client:
             resp = await client.get(OLLAMA_TAGS)
             if resp.status_code != 200:
-                logger.warning(f"Ollama tags API returned {resp.status_code}")
+                logger.warning("Ollama tags API returned %s", resp.status_code)
                 return []
 
             remote_models = resp.json().get("models", [])
@@ -420,7 +396,7 @@ async def discover_ollama_models() -> List[dict]:
 
             return discovered
     except Exception as e:
-        logger.warning(f"Ollama discovery failed: {e}")
+        logger.warning("Ollama discovery failed: %s", e)
         return []
 
 

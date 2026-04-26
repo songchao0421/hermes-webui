@@ -8,6 +8,18 @@
 <link rel="stylesheet" href="/assets/css/tailwind.css">
 <link rel="stylesheet" href="/assets/css/custom.css">
 <link rel="stylesheet" href="/assets/css/fonts.css">
+<!--[if lt IE 9]><script>document.location='about:blank'</script><![endif]-->
+<script>
+// ── Inline fallback: if app JS completely fails, show a friendly error ──
+window.__hermesLoading = true;
+// Detect if app.js fails to load (no switchTab/initApp after 10s)
+setTimeout(function(){
+    if (!window.__hermesLoaded) {
+        document.getElementById('appShell')?.remove();
+        document.getElementById('fallbackError')?.classList.remove('hidden');
+    }
+}, 10000);
+</script>
 </head>
 <body class="bg-surface text-on-surface font-body min-h-screen overflow-x-hidden">
 <div class="grain-overlay"></div>
@@ -147,7 +159,7 @@
         </div>
     </section>
     <!-- Decorative Bottom Gradient -->
-    <div class="fixed bottom-0 left-[256px] right-0 h-24 bg-gradient-to-t from-background to-transparent pointer-events-none z-10"></div>
+    <div id="bottomGradient" class="fixed bottom-0 left-[256px] right-0 h-24 bg-gradient-to-t from-background to-transparent pointer-events-none z-10"></div>
 </main>
 
 <!-- ===================== TAB: MEMORY ===================== -->
@@ -514,10 +526,43 @@
             </div>
             <div class="bg-surface-container-lowest rounded-xl p-4 space-y-2">
                 <h3 class="font-bold text-on-surface text-xs uppercase tracking-widest">Contact</h3>
-                <p>Email: <a href="mailto:stevensong0421@gmail.com" class="text-primary hover:underline">stevensong0421@gmail.com</a></p>
+                <p>Email: <a href="mailto:songchao421@gmail.com" class="text-primary hover:underline">songchao421@gmail.com</a></p>
             </div>
             <div class="pt-4 border-t border-outline-variant/30 space-y-3">
                 <p class="text-xs text-on-surface-variant/60">Version: <span id="localVersion">checking...</span></p>
+
+                <!-- ── Update Controls ── -->
+                <div class="flex items-center gap-2 pt-1">
+                    <button id="checkUpdateBtn"
+                        class="flex-1 px-3 py-2 bg-surface-container-lowest border border-outline-variant rounded-xl text-xs text-on-surface font-bold hover:bg-surface-container transition-colors flex items-center justify-center gap-1.5"
+                        onclick="handleCheckUpdate()">
+                        <span class="material-symbols-outlined text-sm">sync</span>
+                        Check for Updates
+                    </button>
+                    <button id="applyUpdateBtn"
+                        class="flex-1 px-3 py-2 bg-primary-container text-on-primary font-bold rounded-xl text-xs transition-all hover:opacity-90 active:scale-95 disabled:opacity-30 disabled:cursor-not-allowed flex items-center justify-center gap-1.5"
+                        onclick="handleApplyUpdate()" disabled>
+                        <span class="material-symbols-outlined text-sm">system_update</span>
+                        Update &amp; Restart
+                    </button>
+                </div>
+
+                <!-- ── Update Status ── -->
+                <div id="updateStatus" class="hidden text-xs text-on-surface-variant/80 space-y-1">
+                    <div id="updateStatusText" class="flex items-center gap-1.5">
+                        <span id="updateStatusIcon" class="material-symbols-outlined text-sm">circle</span>
+                        <span id="updateStatusMsg"></span>
+                    </div>
+                </div>
+
+                <!-- ── Update Log ── -->
+                <div id="updateLog" class="hidden bg-black/30 rounded-xl p-3 max-h-[200px] overflow-y-auto font-mono text-[11px] leading-relaxed text-[#a8c9a0] space-y-0.5">
+                </div>
+
+                <!-- ── Restart Countdown ── -->
+                <div id="restartCountdown" class="hidden text-xs text-primary text-center py-1">
+                    Restarting server...
+                </div>
             </div>
         </div>
     </div>
@@ -545,6 +590,19 @@
     <span id="saveToastText">Saved!</span>
 </div>
 
+<!-- ===================== GLOBAL NOTIFICATION BAR ===================== -->
+<div id="notificationBar" class="fixed bottom-6 left-1/2 -translate-x-1/2 z-[999] max-w-[90vw] w-auto min-w-[280px] px-5 py-3 rounded-xl text-sm font-bold shadow-xl border transition-all duration-500 pointer-events-auto hidden
+            bg-error-container text-on-error border-error/20"
+     style="transform: translateY(100px); opacity: 0;">
+    <div class="flex items-center gap-3">
+        <span id="notificationIcon" class="material-symbols-outlined text-lg shrink-0">error</span>
+        <span id="notificationText" class="flex-1 leading-tight">Error</span>
+        <button onclick="dismissNotification()" class="shrink-0 opacity-60 hover:opacity-100 transition-opacity">
+            <span class="material-symbols-outlined text-lg">close</span>
+        </button>
+    </div>
+</div>
+
 <!-- ===================== RENAME MODAL ===================== -->
 <div id="renameModal" class="modal-overlay hidden">
     <div class="w-full max-w-[420px] bg-surface-container rounded-2xl shadow-2xl border border-outline-variant p-6 relative mx-6">
@@ -557,6 +615,21 @@
             <button onclick="document.getElementById('renameModal').classList.add('hidden')" class="px-5 py-2 rounded-xl text-sm font-bold text-on-surface-variant hover:text-on-surface transition-colors">取消</button>
             <button onclick="confirmRename()" class="px-5 py-2 bg-primary-container text-on-primary font-bold rounded-xl text-sm transition-all hover:opacity-90 active:scale-95">确认</button>
         </div>
+    </div>
+</div>
+
+<!-- ===================== FALLBACK ERROR (when JS fails) ===================== -->
+<div id="fallbackError" class="hidden fixed inset-0 z-[999] bg-surface flex flex-col items-center justify-center p-8">
+    <div class="max-w-md text-center space-y-4">
+        <span class="material-symbols-outlined text-5xl text-error/60">error_outline</span>
+        <h1 class="font-headline text-xl font-bold text-on-surface">页面加载失败</h1>
+        <p class="text-sm text-on-surface-variant">JavaScript 模块加载异常，请检查网络连接或刷新页面重试。</p>
+        <button onclick="location.reload()"
+            class="inline-flex items-center gap-2 px-6 py-3 bg-primary-container text-on-primary font-bold rounded-xl text-sm transition-all hover:opacity-90 active:scale-95">
+            <span class="material-symbols-outlined text-sm">refresh</span>
+            刷新页面
+        </button>
+        <p class="text-[10px] text-on-surface-variant/40">仍然无法加载？在终端中检查 8080 端口是否正常启动。</p>
     </div>
 </div>
 

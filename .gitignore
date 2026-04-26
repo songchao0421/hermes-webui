@@ -27,3 +27,8 @@ temp_vision_images/
 
 # Logs
 *.log
+
+# Patch/merge artifacts
+*.orig
+*.rej
+*.bak
