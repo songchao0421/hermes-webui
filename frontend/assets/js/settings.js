@@ -87,11 +87,12 @@ export function uploadAgentAvatar(event) {
     if (!file) return;
     const formData = new FormData();
     formData.append('avatar', file);
+    formData.append('type', 'agent');
     apiFetch(apiUrl('/api/persona/avatar'), { method: 'POST', body: formData })
         .then(r => r.json())
         .then(data => {
             if (data.avatar) {
-                state.persona.avatar = data.avatar + '?t=' + Date.now();
+                state.persona.avatar = data.avatar;
                 updateUIFromPersona();
                 showToast('Agent avatar updated!');
             }
@@ -104,11 +105,12 @@ export function uploadUserAvatar(event) {
     if (!file) return;
     const formData = new FormData();
     formData.append('avatar', file);
-    apiFetch(apiUrl('/api/persona/user-avatar'), { method: 'POST', body: formData })
+    formData.append('type', 'user');
+    apiFetch(apiUrl('/api/persona/avatar'), { method: 'POST', body: formData })
         .then(r => r.json())
         .then(data => {
             if (data.avatar) {
-                state.persona.user_avatar = data.avatar + '?t=' + Date.now();
+                state.persona.user_avatar = data.avatar;
                 updateUIFromPersona();
                 showToast('User avatar updated!');
             }

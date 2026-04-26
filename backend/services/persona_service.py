@@ -140,13 +140,13 @@ class PersonaService:
             return avatar_path
 
         # Check frontend dir
-        frontend_dir = Path(__file__).parent.parent / "frontend"
+        project_root = Path(__file__).parent.parent.parent
+        frontend_dir = project_root / "frontend"
         frontend_path = (frontend_dir / filename).resolve()
         if frontend_path.exists() and str(frontend_path).startswith(str(frontend_dir.resolve())):
             return frontend_path
 
         # Check project root
-        project_root = Path(__file__).parent.parent
         root_path = (project_root / filename).resolve()
         if root_path.exists() and str(root_path).startswith(str(project_root.resolve())):
             return root_path

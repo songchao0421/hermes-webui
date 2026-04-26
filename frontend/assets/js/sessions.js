@@ -53,7 +53,7 @@ export async function loadSessionList() {
     try {
         const resp = await apiFetch(apiUrl('/api/sessions'));
         const data = await resp.json();
-        renderSessionList(data);
+        renderSessionList(data.sessions);
     } catch (e) { console.error('Load sessions failed:', e); }
 }
 
@@ -77,10 +77,10 @@ export function renderSessionList(sessions) {
             <div class="flex items-center gap-3 px-4 py-3" onclick="switchSession('${s.id}')">
                 <span class="material-symbols-outlined text-[18px] text-on-surface-variant/50">chat</span>
                 <div class="flex-1 min-w-0">
-                    <div class="text-xs font-medium text-on-surface truncate">${escapeHtml(s.title || 'New Chat')}</div>
+                    <div class="text-xs font-medium text-on-surface truncate">${escapeHtml(s.name || 'New Chat')}</div>
                     <div class="text-[10px] text-on-surface-variant/50 mt-0.5">${s.message_count || 0} messages</div>
                 </div>
-                <button onclick="event.stopPropagation();openRenameModal('${escapeHtml(s.title || '')}')" class="text-on-surface-variant/30 hover:text-primary transition-colors mr-1">
+                <button onclick="event.stopPropagation();openRenameModal('${escapeHtml(s.name || '')}')" class="text-on-surface-variant/30 hover:text-primary transition-colors mr-1">
                     <span class="material-symbols-outlined text-[14px]">edit</span>
                 </button>
                 <button onclick="event.stopPropagation();deleteSessionConfirm('${s.id}')" class="text-on-surface-variant/30 hover:text-error transition-colors">
@@ -98,10 +98,8 @@ export function renderSessionList(sessions) {
 
 export async function newSession() {
     try {
-        const resp = await apiFetch(apiUrl('/api/sessions'), {
+        const resp = await apiFetch(apiUrl('/api/sessions/new'), {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ title: 'New Chat' }),
         });
         const data = await resp.json();
         if (data.session_id) {

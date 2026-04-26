@@ -55,7 +55,8 @@ export function updateUIFromPersona() {
     const navAvatar = document.getElementById('navAvatar');
     navAvatar.innerHTML = '';
     if (p.avatar) {
-        navAvatar.appendChild(makeAvatarImg(apiUrl('/api/persona/avatar/') + p.avatar, 'smart_toy', 'text-3xl'));
+        const avatarPath = p.avatar.includes('?t=') ? p.avatar : p.avatar + '?t=' + Date.now();
+        navAvatar.appendChild(makeAvatarImg(apiUrl('/api/persona/avatar/') + avatarPath, 'smart_toy', 'text-3xl'));
     } else if (p.avatar_preset) {
         const iconMap = { robot: 'smart_toy', face: 'face', bolt: 'bolt' };
         const span = document.createElement('span');
@@ -125,6 +126,10 @@ export function updateUIFromPersona() {
 
     // Apply theme color
     applyThemeColor(p.theme?.accent || '#e8a849');
+
+    // Apply language
+    const savedLang = localStorage.getItem('hermes_webui_language') || 'en';
+    applyLanguage(savedLang);
 }
 
 // ── Persona Load / Save ─────────────────────────────────────────

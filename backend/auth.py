@@ -75,6 +75,10 @@ async def require_auth(
     if not request.url.path.startswith("/api/"):
         return
 
+    # Allow avatar image access without auth (browser <img> tags don't send Bearer token)
+    if request.url.path.startswith("/api/persona/avatar/") and request.method == "GET":
+        return
+
     if not credentials or not credentials.credentials:
         raise HTTPException(
             status_code=401,
