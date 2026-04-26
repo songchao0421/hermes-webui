@@ -3,7 +3,8 @@
  * Settings panel: persona form, avatar uploads, theme/color picker, config.
  * Window-exported for HTML onclick compatibility.
  */
-const App = globalThis.App = globalThis.App || {};
+globalThis.App = globalThis.App || {};
+const App = globalThis.App;
 
 import { apiFetch, apiUrl } from './api.js';
 import { state } from './state.js';

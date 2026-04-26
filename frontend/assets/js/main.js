@@ -29,36 +29,37 @@ import '/assets/js/theme.js';
 import '/assets/js/tool_panel.js';
 
 // ── DOM Ready — ES modules are deferred, DOM is already parsed ──
-const App = window.App;
+// Use window.xxx directly to avoid potential App object reference issues
+// between ES module scopes. Each module exports to both App and window.
 // Load persona and update UI
-if (typeof App.loadPersona === 'function') {
-    App.loadPersona();
+if (typeof window.loadPersona === 'function') {
+    window.loadPersona();
 }
 
 // Load session list
-if (typeof App.loadSessionList === 'function') {
-    App.loadSessionList();
+if (typeof window.loadSessionList === 'function') {
+    window.loadSessionList();
 }
 
 // Initialize memory keyboard shortcuts
-if (typeof App.setupKeyboardShortcuts === 'function') {
-    App.setupKeyboardShortcuts();
+if (typeof window.setupKeyboardShortcuts === 'function') {
+    window.setupKeyboardShortcuts();
 }
 
 // Initialize notifications
-if (typeof App.initNotifications === 'function') {
-    App.initNotifications();
+if (typeof window.initNotifications === 'function') {
+    window.initNotifications();
 }
 
 // Initialize model selector
-if (typeof App.initModelSelector === 'function') {
-    App.initModelSelector();
+if (typeof window.initModelSelector === 'function') {
+    window.initModelSelector();
 }
 
 // Poll initial routing status for LED indicator
-if (typeof App.pollRoutingStatus === 'function') {
-    setTimeout(App.pollRoutingStatus, 1000);
-    setInterval(App.pollRoutingStatus, 30000);
+if (typeof window.pollRoutingStatus === 'function') {
+    setTimeout(window.pollRoutingStatus, 1000);
+    setInterval(window.pollRoutingStatus, 30000);
 }
 
 // ── Onboarding / initialization guide ──────────────────────────

@@ -5,7 +5,8 @@
  *
  * Imported dynamically by chat.js via tool_panel.js API.
  */
-const App = globalThis.App = globalThis.App || {};
+globalThis.App = globalThis.App || {};
+const App = globalThis.App;
 
 // ── State ────────────────────────────────────────────────────────
 

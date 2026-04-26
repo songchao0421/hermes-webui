@@ -3,7 +3,8 @@
  * Memory management: list, search, create, edit, delete memories.
  * Window-exported for HTML onclick compatibility.
  */
-const App = globalThis.App = globalThis.App || {};
+globalThis.App = globalThis.App || {};
+const App = globalThis.App;
 
 import { apiFetch, apiUrl } from './api.js';
 import { escapeHtml, showToast } from './utils.js';

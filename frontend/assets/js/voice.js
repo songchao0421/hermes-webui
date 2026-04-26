@@ -4,7 +4,8 @@
  * recording indicator, auto-send on release.
  * Exports to window for HTML onclick compatibility.
  */
-const App = globalThis.App = globalThis.App || {};
+globalThis.App = globalThis.App || {};
+const App = globalThis.App;
 import { state } from './state.js';
 import { showToast } from './utils.js';
 

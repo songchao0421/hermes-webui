@@ -3,7 +3,8 @@
  * Centralized API calls with auth token injection.
  * Dropped: model listing, routing, plain chat, update checks.
  */
-const App = globalThis.App = globalThis.App || {};
+globalThis.App = globalThis.App || {};
+const App = globalThis.App;
 import { escapeHtml, showToast } from './utils.js';
 import { state } from './state.js';
 

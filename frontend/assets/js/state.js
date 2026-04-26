@@ -8,7 +8,8 @@
  * shared across modules. Provides a single point for future logging,
  * validation, or reactive hooks without requiring a full rewrite.
  */
-const App = globalThis.App = globalThis.App || {};
+globalThis.App = globalThis.App || {};
+const App = globalThis.App;
 
 // ── The State Object ────────────────────────────────────────────
 // All mutable application state lives here as properties.

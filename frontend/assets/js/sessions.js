@@ -3,7 +3,8 @@
  * Session management: list, create, switch, delete sessions + tab switching.
  * Window-exported for HTML onclick compatibility.
  */
-const App = globalThis.App = globalThis.App || {};
+globalThis.App = globalThis.App || {};
+const App = globalThis.App;
 
 import { apiFetch, apiUrl } from './api.js';
 import { state, setState } from './state.js';

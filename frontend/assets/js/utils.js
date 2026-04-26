@@ -1,7 +1,8 @@
 /**
  * Hermes WebUI - Utility Functions
  */
-const App = globalThis.App = globalThis.App || {};
+globalThis.App = globalThis.App || {};
+const App = globalThis.App;
 
 export function escapeHtml(text) {
     const d = document.createElement('div');
