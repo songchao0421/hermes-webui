@@ -32,8 +32,11 @@ export async function saveSettings() {
         if (customColor) accent = customColor.value;
     } else {
         const presetColors = {
-            amber: '#e8a849', green: '#a6e3a1', blue: '#89b4fa', pink: '#f38ba8',
-            purple: '#cba6f7', teal: '#94e2d5', peach: '#fab387', yellow: '#f9e2af'
+            amber: '#e8a849',
+            purple: '#d0bcff',
+            green: '#81c784',
+            cyan: '#00daf3',
+            rose: '#f48fb1'
         };
         accent = presetColors[preset] || '#e8a849';
     }
@@ -131,8 +134,11 @@ export function selectTheme(preset) {
         const el = document.getElementById('settingsCustomColor');
         if (el) el.classList.add('hidden');
         const presetColors = {
-            amber: '#e8a849', green: '#a6e3a1', blue: '#89b4fa', pink: '#f38ba8',
-            purple: '#cba6f7', teal: '#94e2d5', peach: '#fab387', yellow: '#f9e2af'
+            amber: '#e8a849',
+            purple: '#d0bcff',
+            green: '#81c784',
+            cyan: '#00daf3',
+            rose: '#f48fb1'
         };
         const color = presetColors[preset] || '#e8a849';
         applyThemeColor(color);
