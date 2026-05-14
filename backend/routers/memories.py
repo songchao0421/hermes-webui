@@ -30,6 +30,15 @@ async def get_memories():
     return _bridge.get_all_memories()
 
 
+@router.get("/api/memories/file")
+async def get_memory_file(path: str = "SOUL.md"):
+    """Get a specific memory file by name."""
+    if path not in ("SOUL.md", "MEMORY.md", "USER.md"):
+        raise HTTPException(status_code=400, detail="Invalid file")
+    content = _bridge.read_memory(path)
+    return {"path": path, "content": content or ""}
+
+
 @router.put("/api/memories/{filename}")
 async def update_memory(filename: str, body: MemoryUpdate):
     """Update a memory file."""

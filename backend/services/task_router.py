@@ -248,6 +248,10 @@ def decide_routing(
         score, _, reason_str = _keyword_score(message)
         result["score"] = score
 
+        # Default to remote (remote-first mode)
+        result["target_tier"] = "remote"
+        result["reason"] = f"remote-first: {reason_str}"
+
         # ── Phase 2b: Learned corrections override (if confident) ──
         learned_tier = score_message(message)
         if learned_tier and learned_tier != result.get("target_tier", ""):
@@ -269,25 +273,8 @@ def decide_routing(
             # Image analysis → route local (qwen3.6 has vision support + 128K ctx)
             result["target_tier"] = "local"
             result["reason"] = f"Has attachments + score={score}: use local vision (qwen3.6:27b)"
-        elif score <= 20:
-            # Trivial task → definitely local
-            result["target_tier"] = "local"
-            result["reason"] = reason_str
-        elif score <= 30:
-            # Simple task → local, unless already on remote (avoid flip-flop)
-            if active_profile and active_profile.get("type") == "remote":
-                result["target_tier"] = "remote"
-                result["reason"] = f"Simple({score}) but already on remote — keep to avoid switch"
-            else:
-                result["target_tier"] = "local"
-                result["reason"] = reason_str
-        elif score <= 50 and active_profile and active_profile.get("cost_tier") == "free":
-            # If already on a free model, keep it for borderline tasks
-            result["target_tier"] = "local"
-            result["reason"] = f"Borderline({score}) + already on local"
-        else:
-            result["target_tier"] = "remote"
-            result["reason"] = reason_str
+        # else: keep remote-first — all non-attachment messages stay on remote
+        # (no score-based local fallback)
 
     result["override"] = result.get("override") or "auto"
 

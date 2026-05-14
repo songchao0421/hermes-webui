@@ -62,10 +62,36 @@ export function handleSettingsAvatar(event) {
     const file = event.target.files?.[0];
     if (!file) return;
     pendingAgentAvatarFile = file;
+
+    // Show modal
+    document.getElementById('avatarCropModal').classList.remove('hidden');
+
     const reader = new FileReader();
     reader.onload = (e) => {
-        const zone = document.getElementById('settingsAvatarZone');
-        if (zone) zone.style.backgroundImage = 'url(' + e.target.result + ')';
+        const img = document.getElementById('cropImage');
+        img.src = e.target.result;
+
+        // Destroy old cropper if exists
+        if (window._avatarCropper) {
+            window._avatarCropper.destroy();
+        }
+
+        // Initialize Cropper
+        window._avatarCropper = new Cropper(img, {
+            aspectRatio: 1,
+            viewMode: 1,
+            dragMode: 'move',
+            scalable: false,
+            zoomable: true,
+            zoomOnTouch: true,
+            zoomOnWheel: true,
+            cropBoxMovable: true,
+            cropBoxResizable: false,
+            background: false,
+            autoCropArea: 0.6,
+            minCropBoxWidth: 50,
+            minCropBoxHeight: 50,
+        });
     };
     reader.readAsDataURL(file);
 }
@@ -365,6 +391,56 @@ async function handleCheckUpdate() {
 
 window.handleApplyUpdate = handleApplyUpdate;
 App.handleApplyUpdate = handleApplyUpdate;
+
+// ── Crop Modal ────────────────────────────────────────────────────
+
+function closeCropModal() {
+    document.getElementById('avatarCropModal').classList.add('hidden');
+    if (window._avatarCropper) {
+        window._avatarCropper.destroy();
+        window._avatarCropper = null;
+    }
+    pendingAgentAvatarFile = null;
+}
+
+async function saveCroppedAvatar() {
+    if (!window._avatarCropper || !pendingAgentAvatarFile) return;
+    const btn = document.getElementById('cropSaveBtn');
+    btn.textContent = '上传中...';
+    btn.disabled = true;
+    try {
+        const canvas = window._avatarCropper.getCroppedCanvas({
+            width: 200,
+            height: 200,
+            imageSmoothingEnabled: true,
+            imageSmoothingQuality: 'high',
+        });
+        const blob = await new Promise(r => canvas.toBlob(r, 'image/png'));
+        const file = new File([blob], 'avatar.png', { type: 'image/png' });
+
+        const fd = new FormData();
+        fd.append('file', file);
+        fd.append('type', 'agent');
+        const resp = await apiFetch(apiUrl('/api/persona/avatar'), { method: 'POST', body: fd });
+        const data = await resp.json();
+        if (data.avatar) {
+            state.persona.avatar = data.avatar;
+            updateUIFromPersona();
+        }
+        closeCropModal();
+        showToast('头像已更新');
+    } catch (e) {
+        showToast('上传失败: ' + e.message);
+    } finally {
+        btn.textContent = '保存头像';
+        btn.disabled = false;
+    }
+}
+
+window.closeCropModal = closeCropModal;
+App.closeCropModal = closeCropModal;
+window.saveCroppedAvatar = saveCroppedAvatar;
+App.saveCroppedAvatar = saveCroppedAvatar;
 async function handleApplyUpdate() {
     const checkBtn = document.getElementById('checkUpdateBtn');
     const applyBtn = document.getElementById('applyUpdateBtn');

@@ -14,6 +14,7 @@ Abort sets an asyncio.Event that the thread checks between iterations.
 import asyncio
 import json
 import logging
+import os
 import time
 import uuid
 from concurrent.futures import ThreadPoolExecutor
@@ -238,11 +239,17 @@ class HermesSDKBridge:
         hermes_cfg = _load_hermes_config()
         model_cfg = _get_model_config(hermes_cfg)
 
+        # Try to resolve api_key: from config.yaml → env var → hardcoded fallback
+        api_key = model_cfg.get("api_key", "")
+        if not api_key:
+            api_key_env = model_cfg.get("api_key_env", "DEEPSEEK_API_KEY")
+            api_key = os.environ.get(api_key_env, os.environ.get("DEEPSEEK_API_KEY", ""))
+
         agent_kwargs = {
             "model": model_cfg.get("default", ""),
             "base_url": model_cfg.get("base_url", ""),
             "provider": model_cfg.get("provider", ""),
-            "api_key": model_cfg.get("api_key", ""),
+            "api_key": api_key,
             "session_id": self._active_task_id,
             "quiet_mode": True,  # suppress CLI chatter
             "verbose_logging": False,
@@ -267,7 +274,6 @@ class HermesSDKBridge:
             }),
             "skip_context_files": False,
             "skip_memory": False,
-            "persist_session": True,
             "max_tokens": model_cfg.get("max_tokens", 8192),
         }
 

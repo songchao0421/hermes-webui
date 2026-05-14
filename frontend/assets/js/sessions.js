@@ -15,7 +15,7 @@ import { loadPersona } from './persona.js';
 
 export function switchTab(tab) {
     setState('currentTab', tab);
-    const tabs = ['chat', 'skills', 'memory', 'settings'];
+    const tabs = ['chat', 'skills', 'memory', 'files', 'settings'];
     tabs.forEach(t => {
         const panel = document.getElementById('tab' + t.charAt(0).toUpperCase() + t.slice(1));
         if (panel) panel.classList.toggle('hidden', t !== tab);
@@ -32,10 +32,16 @@ export function switchTab(tab) {
     if (tab === 'skills') {
         const { loadSkills } = window.skillsModule || {};
         if (typeof loadSkills === 'function') loadSkills();
+        // Reset search
+        const search = document.getElementById('skillsSearch');
+        if (search) search.value = '';
     }
     if (tab === 'memory') {
         const { loadMemories } = window.memoriesModule || {};
         if (typeof loadMemories === 'function') loadMemories();
+    }
+    if (tab === 'files') {
+        loadFileList();
     }
 
     // Scroll chat to bottom when switching to chat
@@ -269,6 +275,100 @@ App.renderChatHistory = renderChatHistory;
 window.clearChatContainer = clearChatContainer;
 App.clearChatContainer = clearChatContainer;
 window.filterSessions = filterSessions;
+
+// ── File List ────────────────────────────────────────────────────
+
+export async function loadFileList() {
+    const container = document.getElementById('fileList');
+    if (!container) return;
+    container.innerHTML = '<div class="text-center text-on-surface-variant/50 py-20"><span class="material-symbols-outlined text-4xl mb-2 block">folder_off</span>Loading files...</div>';
+
+    try {
+        const resp = await apiFetch('/api/files/list');
+        const data = await resp.json();
+        renderFileList(container, data.files || []);
+    } catch (e) {
+        container.innerHTML = `<div class="text-center text-error/80 py-20">
+            <span class="material-symbols-outlined text-4xl mb-2 block">error</span>
+            Failed to load files: ${escapeHtml(e.message || 'Unknown error')}
+        </div>`;
+    }
+}
+
+function renderFileList(container, files) {
+    if (!files.length) {
+        container.innerHTML = '<div class="text-center text-on-surface-variant/50 py-20"><span class="material-symbols-outlined text-4xl mb-2 block">inbox</span>No files yet. Upload files via Chat.</div>';
+        return;
+    }
+
+    // Group by source
+    const groups = {};
+    files.forEach(f => {
+        if (!groups[f.source]) groups[f.source] = [];
+        groups[f.source].push(f);
+    });
+
+    let html = '';
+    for (const [source, items] of Object.entries(groups)) {
+        const sourceIcon = source.includes('upload') ? 'cloud_upload' :
+                           source.includes('已完成') ? 'check_circle' : 'hourglass_empty';
+        html += `<div class="mb-6">
+            <h3 class="text-sm font-bold text-on-surface-variant/60 uppercase tracking-wider mb-3 flex items-center gap-2">
+                <span class="material-symbols-outlined text-[16px]">${sourceIcon}</span>
+                ${escapeHtml(source)}
+                <span class="text-[10px] text-on-surface-variant/30">(${items.length})</span>
+            </h3>
+            <div class="space-y-1">`;
+        items.forEach(f => {
+            const icon = _fileIcon(f.name);
+            const size = f.size_hr || _fmtSize(f.size);
+            html += `<div class="file-row flex items-center gap-3 px-4 py-3 rounded-xl bg-[#1f1f22] hover:bg-[#2a2a2e] border border-outline-variant/10 transition-colors group">
+                <span class="material-symbols-outlined text-[20px] text-on-surface-variant/60">${icon}</span>
+                <div class="flex-1 min-w-0">
+                    <div class="text-sm text-on-surface truncate">${escapeHtml(f.name)}</div>
+                    <div class="text-[10px] text-on-surface-variant/40">${size} · ${_fmtTime(f.mtime)}</div>
+                </div>
+                <a href="${f.download_url}" download="${escapeHtml(f.name)}"
+                   class="btn-download opacity-0 group-hover:opacity-100 transition-opacity bg-[#e8a849] hover:bg-[#ffc676] text-[#452b00] px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1">
+                    <span class="material-symbols-outlined text-[14px]">download</span>
+                    Download
+                </a>
+            </div>`;
+        });
+        html += `</div></div>`;
+    }
+    container.innerHTML = html;
+}
+
+function _fileIcon(name) {
+    const ext = name.split('.').pop().toLowerCase();
+    const map = {
+        pdf: 'picture_as_pdf', doc: 'description', docx: 'description',
+        xls: 'table_chart', xlsx: 'table_chart', ppt: 'slideshow', pptx: 'slideshow',
+        png: 'image', jpg: 'image', jpeg: 'image', gif: 'gif', svg: 'image',
+        mp4: 'videocam', mov: 'videocam', avi: 'videocam',
+        mp3: 'audio_file', wav: 'audio_file', flac: 'audio_file',
+        zip: 'folder_zip', rar: 'folder_zip', '7z': 'folder_zip',
+        py: 'code', js: 'javascript', ts: 'code', json: 'data_object',
+        yaml: 'data_object', yml: 'data_object', md: 'article', txt: 'article',
+    };
+    return map[ext] || 'insert_drive_file';
+}
+
+function _fmtSize(bytes) {
+    if (bytes < 1024) return bytes + ' B';
+    if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB';
+    return (bytes / 1048576).toFixed(1) + ' MB';
+}
+
+function _fmtTime(ts) {
+    if (!ts) return '';
+    const d = new Date(ts * 1000);
+    return d.toLocaleDateString() + ' ' + d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+}
+
+window.loadFileList = loadFileList;
+App.loadFileList = loadFileList;
 App.filterSessions = filterSessions;
 window.toggleMobileNav = toggleMobileNav;
 App.toggleMobileNav = toggleMobileNav;

@@ -24,11 +24,47 @@ export function setAuthToken(token) {
     localStorage.setItem('hermes_webui_token', token);
 }
 
+export function getAuthUsername() {
+    return localStorage.getItem('hermes_webui_username') || '';
+}
+
+export function setAuthUsername(name) {
+    localStorage.setItem('hermes_webui_username', name);
+}
+
+export function clearAuth() {
+    localStorage.removeItem('hermes_webui_token');
+    localStorage.removeItem('hermes_webui_username');
+}
+
 function authHeaders(extra = {}) {
     const token = getAuthToken();
     const headers = { ...extra };
     if (token) headers['Authorization'] = 'Bearer ' + token;
     return headers;
+}
+
+// Login/Register API
+export async function apiLogin(username, password) {
+    const resp = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username, password }),
+    });
+    const data = await resp.json();
+    if (!resp.ok) throw new Error(data.detail || '登录失败');
+    return data;
+}
+
+export async function apiRegister(username, password) {
+    const resp = await fetch('/api/auth/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username, password }),
+    });
+    const data = await resp.json();
+    if (!resp.ok) throw new Error(data.detail || '注册失败');
+    return data;
 }
 
 export async function apiFetch(url, options = {}) {
@@ -67,6 +103,64 @@ export function showAuthModal() {
 export function hideAuthModal() {
     const modal = document.getElementById('authModal');
     if (modal) modal.classList.add('hidden');
+}
+
+export function showLoginForm() {
+    document.getElementById('loginForm').classList.remove('hidden');
+    document.getElementById('registerForm').classList.add('hidden');
+    document.getElementById('authModalTitle').textContent = '员工登录';
+    document.getElementById('authModalSub').textContent = '请输入你的账号密码';
+    document.getElementById('authError').classList.add('hidden');
+}
+
+export function showRegisterForm() {
+    document.getElementById('loginForm').classList.add('hidden');
+    document.getElementById('registerForm').classList.remove('hidden');
+    document.getElementById('authModalTitle').textContent = '注册账号';
+    document.getElementById('authModalSub').textContent = '创建你的专属工作空间';
+    document.getElementById('regError').classList.add('hidden');
+}
+
+export async function submitLogin() {
+    const username = document.getElementById('loginUsername').value.trim();
+    const password = document.getElementById('loginPassword').value;
+    const errEl = document.getElementById('authError');
+    if (!username || !password) { errEl.textContent = '请输入用户名和密码'; errEl.classList.remove('hidden'); return; }
+    try {
+        const result = await apiLogin(username, password);
+        setAuthToken(result.token);
+        setAuthUsername(result.username);
+        hideAuthModal();
+        localStorage.setItem('hermes_webui_last_activity', Date.now().toString());
+        if (typeof window.startSessionMonitor === 'function') window.startSessionMonitor();
+        // 登录成功，不刷新页面，直接使用
+    } catch (e) {
+        errEl.textContent = e.message;
+        errEl.classList.remove('hidden');
+    }
+}
+
+export async function submitRegister() {
+    const username = document.getElementById('regUsername').value.trim();
+    const password = document.getElementById('regPassword').value;
+    const confirm = document.getElementById('regPasswordConfirm').value;
+    const errEl = document.getElementById('regError');
+    if (!username) { errEl.textContent = '请输入真实姓名'; errEl.classList.remove('hidden'); return; }
+    if (password.length < 4) { errEl.textContent = '密码至少4位'; errEl.classList.remove('hidden'); return; }
+    if (password !== confirm) { errEl.textContent = '两次密码不一致'; errEl.classList.remove('hidden'); return; }
+    try {
+        const result = await apiRegister(username, password);
+        setAuthToken(result.token);
+        setAuthUsername(result.username);
+        // 注册成功，自动切换到登录页让用户手动登录
+        showLoginForm();
+        document.getElementById('loginUsername').value = username;
+        document.getElementById('loginPassword').value = '';
+        document.getElementById('loginPassword').focus();
+    } catch (e) {
+        errEl.textContent = e.message;
+        errEl.classList.remove('hidden');
+    }
 }
 
 export async function submitAuthToken() {
@@ -269,6 +363,14 @@ window.showAuthModal = showAuthModal;
 App.showAuthModal = showAuthModal;
 window.hideAuthModal = hideAuthModal;
 App.hideAuthModal = hideAuthModal;
+window.submitLogin = submitLogin;
+App.submitLogin = submitLogin;
+window.submitRegister = submitRegister;
+App.submitRegister = submitRegister;
+window.showLoginForm = showLoginForm;
+App.showLoginForm = showLoginForm;
+window.showRegisterForm = showRegisterForm;
+App.showRegisterForm = showRegisterForm;
 window.submitAuthToken = submitAuthToken;
 App.submitAuthToken = submitAuthToken;
 window.getPersona = getPersona;
@@ -360,3 +462,67 @@ window.checkUpdate = checkUpdate;
 App.checkUpdate = checkUpdate;
 window.applyUpdate = applyUpdate;
 App.applyUpdate = applyUpdate;
+
+// ── Session Timeout ──────────────────────────────────────────────
+
+let _sessionTimer = null;
+const TIMEOUT_KEY = 'hermes_webui_timeout_minutes';
+const LAST_ACTIVITY_KEY = 'hermes_webui_last_activity';
+
+export function getSessionTimeoutMinutes() {
+    const v = localStorage.getItem(TIMEOUT_KEY);
+    return v ? parseInt(v, 10) : 30;
+}
+
+export function saveSessionTimeout() {
+    const select = document.getElementById('sessionTimeoutSelect');
+    if (!select) return;
+    const minutes = parseFloat(select.value);
+    localStorage.setItem(TIMEOUT_KEY, String(minutes));
+    const msg = document.getElementById('sessionTimeoutMsg');
+    if (msg) {
+        if (minutes === 0) msg.textContent = '✅ 已保存（永不超时）';
+        else if (minutes < 1) msg.textContent = `✅ 已保存（${Math.round(minutes * 60)} 秒无操作自动退出）`;
+        else msg.textContent = `✅ 已保存（${minutes} 分钟无操作自动退出）`;
+    }
+    // Reset activity timer
+    localStorage.setItem(LAST_ACTIVITY_KEY, Date.now().toString());
+    startSessionMonitor();
+}
+
+function _renewActivity() {
+    localStorage.setItem(LAST_ACTIVITY_KEY, Date.now().toString());
+}
+
+export function startSessionMonitor() {
+    if (_sessionTimer) clearInterval(_sessionTimer);
+    _sessionTimer = setInterval(() => {
+        const token = localStorage.getItem('hermes_webui_token');
+        if (!token) return; // Not logged in
+
+        const minutes = getSessionTimeoutMinutes();
+        if (minutes <= 0) return; // Never timeout
+
+        const last = parseInt(localStorage.getItem(LAST_ACTIVITY_KEY) || '0', 10);
+        const elapsed = (Date.now() - last) / 60000;
+        if (elapsed >= minutes) {
+            // Timeout — clear auth and show login
+            localStorage.removeItem('hermes_webui_token');
+            localStorage.removeItem('hermes_webui_username');
+            localStorage.removeItem(LAST_ACTIVITY_KEY);
+            const modal = document.getElementById('authModal');
+            if (modal) modal.classList.remove('hidden');
+            if (_sessionTimer) clearInterval(_sessionTimer);
+        }
+    }, 10000); // Check every 10 seconds
+}
+
+// Track user activity — renew on any interaction
+['click', 'keydown', 'mousemove', 'touchstart', 'scroll'].forEach(evt => {
+    document.addEventListener(evt, _renewActivity, { passive: true });
+});
+
+window.saveSessionTimeout = saveSessionTimeout;
+App.saveSessionTimeout = saveSessionTimeout;
+window.startSessionMonitor = startSessionMonitor;
+App.startSessionMonitor = startSessionMonitor;

@@ -3,7 +3,16 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
 <title>Hermes WebUI</title>
+<!-- Cropper.js for avatar crop -->
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/cropperjs@1.6.2/dist/cropper.min.css">
+<script src="https://cdn.jsdelivr.net/npm/cropperjs@1.6.2/dist/cropper.min.js"></script>
+<!-- EasyMDE for markdown editing -->
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/easymde@2.18.0/dist/easymde.min.css">
+<script src="https://cdn.jsdelivr.net/npm/easymde@2.18.0/dist/easymde.min.js"></script>
 <!-- Self-hosted CSS (no CDN dependencies) -->
 <link rel="stylesheet" href="/assets/css/tailwind.css">
 <link rel="stylesheet" href="/assets/css/custom.css">
@@ -56,6 +65,8 @@ setTimeout(function(){
         </button>
     </nav>
 
+    <!-- Files button (outside nav, in the main sidebar area) -->
+
     <!-- New Chat Button -->
     <div class="pt-8 pb-4">
         <button onclick="newSession()" class="w-full flex items-center justify-center gap-2 bg-primary-container text-on-primary font-bold py-3 px-4 rounded-xl active:scale-95 duration-150 shadow-lg shadow-primary/10 shadow-[inset_0px_1px_0px_rgba(255,255,255,0.1)]">
@@ -73,8 +84,12 @@ setTimeout(function(){
       <!-- Recent Sessions -->
       <div id="sessionList" class="mt-2 space-y-1 overflow-y-auto flex-1 min-h-0 custom-scrollbar"></div>
 
-    <!-- Bottom: Settings + Support -->
+    <!-- Bottom: Settings + Files + Support -->
     <div class="mt-auto space-y-1 font-['Plus_Jakarta_Sans'] text-sm tracking-tight border-t border-outline-variant pt-4">
+        <button class="nav-item w-full flex items-center gap-3 px-4 py-3 rounded-xl text-[#d5c4b1] opacity-70" data-tab="files" onclick="switchTab('files')">
+            <span class="text-[16px]">📁</span>
+            Files
+        </button>
         <button class="nav-item w-full flex items-center gap-3 px-4 py-3 rounded-xl text-[#d5c4b1] opacity-70" data-tab="settings" onclick="switchTab('settings')">
             <span class="material-symbols-outlined text-[20px]">settings</span>
             Settings
@@ -110,6 +125,10 @@ setTimeout(function(){
         </div>
         <div class="h-4 w-[1.5px] bg-outline-variant/30"></div>
     </div>
+    <!-- Brand text in top bar center -->
+    <div id="brandBanner" class="flex-1 text-center text-[13px] font-bold tracking-[0.12em] select-none" style="color: var(--theme-primary); opacity: 0.4;">
+        量子实验室出品
+    </div>
     <div class="flex items-center gap-6">
         <button id="langLabel" onclick="toggleLanguage()" title="切换语言"
             class="w-9 h-9 rounded-lg bg-surface-container-high border border-outline-variant/30 text-on-surface-variant text-[11px] font-bold tracking-wider hover:text-primary hover:border-primary/40 transition-colors cursor-pointer select-none"
@@ -120,9 +139,9 @@ setTimeout(function(){
 </header>
 
 <!-- ===================== TAB: CHAT ===================== -->
-<main id="tabChat" class="ml-[256px] pt-[56px] pb-[140px] h-screen overflow-y-auto custom-scrollbar flex flex-col items-center">
+<main id="tabChat" class="ml-[256px] pt-[56px] h-screen overflow-y-auto custom-scrollbar flex flex-col items-center" style="padding-bottom: 140px;">
     <div id="chatContainer" class="w-full max-w-[900px] px-8 pt-2 pb-12 flex-grow">
-        <div id="emptyState" class="flex flex-col items-center justify-start pt-12 text-on-surface-variant/30">
+        <div id="emptyState" class="flex flex-col items-center justify-start pt-4 text-on-surface-variant/30">
         </div>
     </div>
 </main>
@@ -130,124 +149,141 @@ setTimeout(function(){
 <!-- ===================== TAB: SKILLS ===================== -->
 <main id="tabSkills" class="ml-[256px] pt-[56px] pb-12 min-h-screen hidden">
     <section class="max-w-5xl mx-auto p-8 relative z-10">
-        <header class="mb-6">
-            <h2 class="text-[18px] font-bold font-headline mb-1" style="color: var(--theme-primary);">Installed Skills</h2>
-            <div class="h-0.5 w-12 bg-outline-variant border-dashed border-b border-outline-variant mb-6"></div>
+        <!-- Header -->
+        <header class="flex items-center justify-between mb-8">
+            <div>
+                <h2 class="text-[18px] font-bold font-headline" style="color: var(--theme-primary);">技能</h2>
+                <p class="text-xs text-on-surface-variant/60 mt-1">系统技能 / 我的技能 / 安装的技能</p>
+            </div>
+            <div class="flex gap-3">
+                <button onclick="showCreateSkillModal()" class="px-4 py-2 bg-primary text-on-primary font-bold rounded-lg text-xs transition-all active:scale-95 flex items-center gap-1.5">
+                    <span class="material-symbols-outlined text-[14px]">add</span> 创建技能
+                </button>
+                <label class="px-4 py-2 bg-surface-container-high text-on-surface font-bold rounded-lg text-xs border border-outline-variant/30 transition-all active:scale-95 cursor-pointer flex items-center gap-1.5">
+                    <span class="material-symbols-outlined text-[14px]">upload</span> 导入
+                    <input type="file" class="hidden" accept=".zip" onchange="importSkill(event)">
+                </label>
+            </div>
         </header>
-        <!-- Skills Grid -->
-        <div id="skillsContainer" class="grid grid-cols-1 md:grid-cols-2 gap-4"></div>
-        <!-- Expand Your Workshop -->
-        <div class="mt-12 grid grid-cols-1 gap-6">
-            <div class="bg-surface-container-lowest border border-outline-variant stitched-border rounded-2xl p-8 flex flex-col md:flex-row items-center justify-between gap-6 overflow-hidden relative">
-                <div class="absolute -right-12 -top-12 w-48 h-48 bg-primary/5 rounded-full blur-3xl"></div>
-                <div class="relative z-10 max-w-lg">
-                    <h4 class="text-xl font-headline font-bold text-on-surface mb-2">Expand Your Workshop</h4>
-                    <p class="text-on-surface-variant text-sm">Need more specialized tools? Browse the community library for custom Python-based skills for Hermes WebUI.</p>
-                    <div class="mt-6 flex gap-4">
-                        <button onclick="showSkillStore()" class="px-5 py-2.5 bg-primary text-on-primary font-bold rounded-lg text-sm transition-all active:scale-95">Open Skill Store</button>
-                        <label class="px-5 py-2.5 bg-surface-container-high text-on-surface font-bold rounded-lg text-sm border border-outline-variant/30 transition-all active:scale-95 cursor-pointer">
-                            Import Skill (.zip)
-                            <input type="file" class="hidden" accept=".zip" onchange="importSkill(event)">
-                        </label>
-                    </div>
-                </div>
-                <div class="w-full md:w-64 h-40 bg-surface-container rounded-xl border border-outline-variant/20 overflow-hidden relative group flex items-center justify-center">
-                    <div class="absolute inset-0 bg-gradient-to-t from-surface-container-lowest to-transparent"></div>
-                    <div class="absolute bottom-4 left-4 flex items-center gap-2 z-10">
-                        <div class="w-8 h-8 rounded bg-primary/20 flex items-center justify-center">
-                            <span class="material-symbols-outlined text-primary text-xs">extension</span>
-                        </div>
-                        <span class="text-xs font-bold text-primary">240+ New Skills</span>
-                    </div>
-                </div>
+
+        <!-- Search + Tabs row -->
+        <div class="flex items-center gap-4 mb-6 flex-wrap">
+            <!-- Search -->
+            <div class="relative flex-1 min-w-[200px] max-w-sm">
+                <span class="absolute left-3 top-1/2 -translate-y-1/2 material-symbols-outlined text-[14px] text-on-surface-variant/40">search</span>
+                <input id="skillsSearch" type="text" class="w-full bg-surface-container-high border border-outline-variant/20 rounded-xl pr-4 py-2.5 text-xs text-on-surface placeholder:text-on-surface-variant/40 outline-none focus:border-primary/40 focus:ring-1 focus:ring-primary/20 transition-all" style="padding-left: 36px;" placeholder="搜索技能..." oninput="filterSkills()">
+            </div>
+            <!-- Tabs -->
+            <div class="flex gap-0.5 bg-surface-container-high rounded-xl p-0.5">
+                <button class="skill-tab px-4 py-2 rounded-lg text-xs font-bold transition-all" data-skill-type="system" onclick="switchSkillTab('system')">系统技能</button>
+                <button class="skill-tab px-4 py-2 rounded-lg text-xs font-bold transition-all" data-skill-type="custom" onclick="switchSkillTab('custom')">我的技能</button>
+                <button class="skill-tab px-4 py-2 rounded-lg text-xs font-bold transition-all" data-skill-type="installed" onclick="switchSkillTab('installed')">安装的技能</button>
             </div>
         </div>
+
+        <!-- Skills Grid -->
+        <div id="skillsContainer" class="space-y-2"></div>
     </section>
-    <!-- Decorative Bottom Gradient -->
-    <div id="bottomGradient" class="fixed bottom-0 left-[256px] right-0 h-24 bg-gradient-to-t from-background to-transparent pointer-events-none z-10"></div>
 </main>
 
 <!-- ===================== TAB: MEMORY ===================== -->
 <main id="tabMemory" class="ml-[256px] pt-[56px] pb-12 min-h-screen hidden">
     <div class="max-w-5xl mx-auto p-12">
-        <!-- Header Section -->
-        <div class="mb-10 flex items-center justify-between flex-wrap gap-4">
-            <div>
-                <h2 class="text-[18px] font-bold text-[#e8a849] font-headline mb-1">Memory System</h2>
-                <p class="text-[13px] text-on-surface-variant">These memory files are shared with Hermes CLI. Changes apply to both.</p>
+        <!-- Header -->
+        <div class="mb-8">
+            <h2 class="text-[18px] font-bold font-headline mb-1" style="color: var(--theme-primary);">SOUL 配置</h2>
+            <p class="text-xs text-on-surface-variant/60">量子数字员工（只读）/ 本机 SOUL（可编辑）</p>
+        </div>
+
+        <!-- SOUL Tabs -->
+        <div class="flex gap-0.5 bg-surface-container-high rounded-xl p-0.5 mb-6 w-fit">
+            <button class="soul-tab px-4 py-2 rounded-lg text-xs font-bold transition-all bg-primary text-on-primary" data-soul-type="company" onclick="switchSoulTab('company')">量子数字员工</button>
+            <button class="soul-tab px-4 py-2 rounded-lg text-xs font-bold transition-all text-on-surface-variant hover:bg-surface-container-highest" data-soul-type="local" onclick="switchSoulTab('local')">本机 SOUL</button>
+        </div>
+
+        <!-- SOUL Content Area -->
+        <div class="bg-surface-container rounded-xl border border-outline-variant/10 overflow-hidden mb-10">
+            <!-- Toolbar -->
+            <div class="flex items-center justify-between px-6 py-4 border-b border-outline-variant/10">
+                <div class="flex items-center gap-3">
+                    <span class="material-symbols-outlined text-[18px] text-primary/60" id="soulIcon">group</span>
+                    <h3 class="font-bold text-sm text-on-surface" id="soulTitle">量子数字员工</h3>
+                    <span class="text-[10px] px-2 py-0.5 rounded-full font-bold" id="soulBadge">只读</span>
+                </div>
+                <div class="flex items-center gap-2">
+                    <button id="soulEditModeBtn" onclick="toggleSoulEditMode()" class="px-3 py-1.5 bg-surface-container-high text-on-surface-variant font-bold rounded-lg text-xs transition-all active:scale-95 flex items-center gap-1">
+                        <span class="material-symbols-outlined text-[12px]">edit</span> 编辑
+                    </button>
+                    <button id="soulCancelBtn" onclick="cancelSoulEdit()" class="px-3 py-1.5 bg-surface-container-high text-on-surface-variant font-bold rounded-lg text-xs transition-all active:scale-95 hidden">取消</button>
+                    <button id="soulSaveBtn" onclick="saveSoul()" class="px-4 py-2 bg-primary text-on-primary font-bold rounded-lg text-xs transition-all active:scale-95 hidden">保存</button>
+                </div>
             </div>
-            <div class="flex gap-3">
-                <button onclick="snapshotMemory()" class="flex items-center gap-2 px-4 py-2 rounded-xl bg-surface-container border border-outline-variant/20 text-on-surface-variant hover:border-outline-variant/50 text-sm font-bold transition-all">
-                    <span class="material-symbols-outlined text-[16px]">save</span> Snapshot
-                </button>
-                <button onclick="openExtractModal()" class="flex items-center gap-2 px-4 py-2 rounded-xl font-bold text-sm transition-all active:scale-95" style="background:var(--theme-primary);color:#1a1a1a;">
-                    <span class="material-symbols-outlined text-[16px]">auto_awesome</span> Extract from Chat
-                </button>
+            <!-- Content: preview + edit modes -->
+            <div class="p-6">
+                <!-- Preview (default) - markdown filtered -->
+                <div id="soulPreview" class="w-full bg-surface-container-lowest border border-outline-variant/20 rounded-xl p-4 text-sm text-on-surface leading-relaxed whitespace-pre-wrap overflow-auto" style="max-height: 600px;"></div>
+                <!-- Editor (hidden by default) -->
+                <div id="soulEditorWrap" class="hidden"><textarea id="soulContent" rows="25"></textarea></div>
+                <div id="soulStatus" class="mt-2 text-[10px] text-on-surface-variant/40 flex items-center gap-2">
+                    <span class="w-2 h-2 rounded-full bg-outline"></span>
+                    <span>加载中...</span>
+                </div>
             </div>
         </div>
-        <!-- Memory Cards -->
-        <div class="flex flex-col gap-6">
-            <!-- SOUL.md -->
-            <div class="bg-surface-container rounded-xl p-6 border border-transparent hover:border-outline-variant transition-all group relative overflow-hidden shadow-sm">
-                <div class="flex justify-between items-start mb-4 relative z-10">
-                    <div class="flex items-center gap-4">
-                        <div class="w-12 h-12 bg-surface-container-lowest rounded-lg flex items-center justify-center border border-outline-variant text-primary">
-                            <span class="material-symbols-outlined" style="font-size:28px">person</span>
+
+        <!-- MEMORY & USER section -->
+        <div class="mb-6">
+            <h3 class="text-sm font-bold text-on-surface mb-4">其他记忆文件</h3>
+            <div class="flex flex-col gap-4">
+                <!-- MEMORY.md -->
+                <div class="bg-surface-container rounded-xl border border-outline-variant/10 overflow-hidden">
+                    <div class="flex items-center justify-between px-5 py-4 border-b border-outline-variant/10">
+                        <div class="flex items-center gap-3">
+                            <div class="w-10 h-10 bg-surface-container-lowest rounded-lg flex items-center justify-center border border-outline-variant text-primary">
+                                <span class="material-symbols-outlined" style="font-size:22px">psychology</span>
+                            </div>
+                            <div>
+                                <h4 class="font-bold text-sm text-on-surface font-headline">MEMORY.md</h4>
+                                <p class="text-xs text-on-surface-variant/60">Accumulated knowledge and context</p>
+                            </div>
                         </div>
-                        <div>
-                            <h3 class="font-bold text-on-surface font-headline">SOUL.md</h3>
-                            <p class="text-sm text-on-surface-variant">Agent's core personality, name, behavior rules</p>
-                        </div>
-                    </div>
-                    <button onclick="editMemory('SOUL.md')" class="text-[13px] font-bold text-[#e8a849] hover:underline flex items-center gap-1 px-3 py-1 rounded-lg hover:bg-primary/10 transition-colors">
-                        <span class="material-symbols-outlined" style="font-size:16px">edit</span> Edit
-                    </button>
-                </div>
-                <div class="relative">
-                    <pre id="memorySoul" class="bg-surface-container-lowest rounded-lg p-4 font-mono text-[13px] text-on-surface-variant border border-outline-variant/30 max-h-32 overflow-hidden whitespace-pre-wrap"></pre>
-                    <div class="absolute bottom-0 left-0 right-0 h-12 bg-gradient-to-t from-surface-container-lowest to-transparent"></div>
-                </div>
-            </div>
-            <!-- MEMORY.md -->
-            <div class="bg-surface-container rounded-xl p-6 border border-transparent hover:border-outline-variant transition-all group relative overflow-hidden shadow-sm">
-                <div class="flex justify-between items-start mb-4 relative z-10">
-                    <div class="flex items-center gap-4">
-                        <div class="w-12 h-12 bg-surface-container-lowest rounded-lg flex items-center justify-center border border-outline-variant text-primary">
-                            <span class="material-symbols-outlined" style="font-size:28px">psychology</span>
-                        </div>
-                        <div>
-                            <h3 class="font-bold text-on-surface font-headline">MEMORY.md</h3>
-                            <p class="text-sm text-on-surface-variant">Accumulated knowledge and context</p>
+                        <div class="flex items-center gap-2">
+                            <button class="memory-edit-btn text-[12px] font-bold text-primary hover:underline flex items-center gap-1 px-3 py-1.5 rounded-lg hover:bg-primary/10 transition-colors" onclick="toggleMemoryEdit('MEMORY.md')">
+                                <span class="material-symbols-outlined" style="font-size:14px">edit</span> 编辑
+                            </button>
+                            <button class="memory-cancel-btn text-[12px] font-bold text-on-surface-variant hover:text-on-surface px-3 py-1.5 rounded-lg hover:bg-surface-container-high transition-colors hidden" onclick="cancelMemoryEdit('MEMORY.md')">取消</button>
+                            <button class="memory-save-btn px-3 py-1.5 bg-primary text-on-primary font-bold rounded-lg text-xs transition-all active:scale-95 hidden" onclick="saveMemoryFile('MEMORY.md')">保存</button>
                         </div>
                     </div>
-                    <button onclick="editMemory('MEMORY.md')" class="text-[13px] font-bold text-[#e8a849] hover:underline flex items-center gap-1 px-3 py-1 rounded-lg hover:bg-primary/10 transition-colors">
-                        <span class="material-symbols-outlined" style="font-size:16px">edit</span> Edit
-                    </button>
+                    <div class="p-5">
+                        <pre id="memoryMemory" class="bg-surface-container-lowest rounded-lg p-3 font-mono text-[12px] text-on-surface-variant border border-outline-variant/20 max-h-24 overflow-hidden whitespace-pre-wrap text-xs"></pre>
+                        <div class="hidden" id="memoryMemoryEditorWrap"><textarea id="memoryMemoryEditor" rows="15"></textarea></div>
+                    </div>
                 </div>
-                <div class="relative">
-                    <pre id="memoryMemory" class="bg-surface-container-lowest rounded-lg p-4 font-mono text-[13px] text-on-surface-variant border border-outline-variant/30 max-h-32 overflow-hidden whitespace-pre-wrap"></pre>
-                    <div class="absolute bottom-0 left-0 right-0 h-12 bg-gradient-to-t from-surface-container-lowest to-transparent"></div>
-                </div>
-            </div>
-            <!-- USER.md -->
-            <div class="bg-surface-container rounded-xl p-6 border border-transparent hover:border-outline-variant transition-all group relative overflow-hidden shadow-sm">
-                <div class="flex justify-between items-start mb-4 relative z-10">
-                    <div class="flex items-center gap-4">
-                        <div class="w-12 h-12 bg-surface-container-lowest rounded-lg flex items-center justify-center border border-outline-variant text-primary">
-                            <span class="material-symbols-outlined" style="font-size:28px">badge</span>
+                <!-- USER.md -->
+                <div class="bg-surface-container rounded-xl border border-outline-variant/10 overflow-hidden">
+                    <div class="flex items-center justify-between px-5 py-4 border-b border-outline-variant/10">
+                        <div class="flex items-center gap-3">
+                            <div class="w-10 h-10 bg-surface-container-lowest rounded-lg flex items-center justify-center border border-outline-variant text-primary">
+                                <span class="material-symbols-outlined" style="font-size:22px">badge</span>
+                            </div>
+                            <div>
+                                <h4 class="font-bold text-sm text-on-surface font-headline">USER.md</h4>
+                                <p class="text-xs text-on-surface-variant/60">User profile information</p>
+                            </div>
                         </div>
-                        <div>
-                            <h3 class="font-bold text-on-surface font-headline">USER.md</h3>
-                            <p class="text-sm text-on-surface-variant">User profile information</p>
+                        <div class="flex items-center gap-2">
+                            <button class="memory-edit-btn text-[12px] font-bold text-primary hover:underline flex items-center gap-1 px-3 py-1.5 rounded-lg hover:bg-primary/10 transition-colors" onclick="toggleMemoryEdit('USER.md')">
+                                <span class="material-symbols-outlined" style="font-size:14px">edit</span> 编辑
+                            </button>
+                            <button class="memory-cancel-btn text-[12px] font-bold text-on-surface-variant hover:text-on-surface px-3 py-1.5 rounded-lg hover:bg-surface-container-high transition-colors hidden" onclick="cancelMemoryEdit('USER.md')">取消</button>
+                            <button class="memory-save-btn px-3 py-1.5 bg-primary text-on-primary font-bold rounded-lg text-xs transition-all active:scale-95 hidden" onclick="saveMemoryFile('USER.md')">保存</button>
                         </div>
                     </div>
-                    <button onclick="editMemory('USER.md')" class="text-[13px] font-bold text-[#e8a849] hover:underline flex items-center gap-1 px-3 py-1 rounded-lg hover:bg-primary/10 transition-colors">
-                        <span class="material-symbols-outlined" style="font-size:16px">edit</span> Edit
-                    </button>
-                </div>
-                <div class="relative">
-                    <pre id="memoryUser" class="bg-surface-container-lowest rounded-lg p-4 font-mono text-[13px] text-on-surface-variant border border-outline-variant/30 max-h-32 overflow-hidden whitespace-pre-wrap"></pre>
-                    <div class="absolute bottom-0 left-0 right-0 h-12 bg-gradient-to-t from-surface-container-lowest to-transparent"></div>
+                    <div class="p-5">
+                        <pre id="memoryUser" class="bg-surface-container-lowest rounded-lg p-3 font-mono text-[12px] text-on-surface-variant border border-outline-variant/20 max-h-24 overflow-hidden whitespace-pre-wrap text-xs"></pre>
+                        <div class="hidden" id="memoryUserEditorWrap"><textarea id="memoryUserEditor" rows="15"></textarea></div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -294,6 +330,18 @@ setTimeout(function(){
                             <label class="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest block px-1">Agent Name</label>
                             <input id="settingsName" type="text" class="settings-input font-bold" placeholder="Give your agent a name..." maxlength="32">
                         </div>
+                        <!-- Theme Color Picker -->
+                        <div class="pt-4">
+                            <label class="text-[10px] font-bold text-on-surface-variant uppercase tracking-widest block px-1 mb-3">Set Color</label>
+                            <div class="flex flex-wrap items-center gap-4" id="settingsThemePicker">
+                                <div class="theme-swatch selected" style="background: #e8a849;" data-preset="amber" onclick="selectSettingsTheme(this)"></div>
+                                <div class="theme-swatch" style="background: #d0bcff;" data-preset="purple" onclick="selectSettingsTheme(this)"></div>
+                                <div class="theme-swatch" style="background: #81c784;" data-preset="green" onclick="selectSettingsTheme(this)"></div>
+                                <div class="theme-swatch" style="background: #00daf3;" data-preset="cyan" onclick="selectSettingsTheme(this)"></div>
+                                <div class="theme-swatch" style="background: #f48fb1;" data-preset="rose" onclick="selectSettingsTheme(this)"></div>
+                            </div>
+                            <input id="settingsCustomColor" type="color" value="#e8a849" class="hidden mt-4 w-10 h-10 p-0 border-0 rounded-lg cursor-pointer">
+                        </div>
                     </div>
                 </div>
             </section>
@@ -326,29 +374,27 @@ setTimeout(function(){
                 </div>
             </section>
 
-            <!-- CARD: Theme Color -->
+            <!-- CARD: Session Timeout -->
             <section class="bg-[#1f1f22] rounded-3xl p-8 border border-outline-variant/10 shadow-2xl relative">
-                <div class="flex items-center gap-3 mb-8">
-                    <span class="material-symbols-outlined" style="color: var(--theme-primary);">palette</span>
-                    <h3 class="text-on-surface font-semibold tracking-tight">Set Color</h3>
+                <div class="flex items-center gap-3 mb-6">
+                    <span class="material-symbols-outlined" style="color: var(--theme-primary);">timer</span>
+                    <h3 class="text-on-surface font-semibold tracking-tight">登录超时设置</h3>
                 </div>
-                <div class="flex flex-wrap items-center gap-6" id="settingsThemePicker">
-                    <div class="theme-swatch selected" style="background: #e8a849;" data-preset="amber" onclick="selectSettingsTheme(this)"></div>
-                    <div class="theme-swatch" style="background: #d0bcff;" data-preset="purple" onclick="selectSettingsTheme(this)"></div>
-                    <div class="theme-swatch" style="background: #81c784;" data-preset="green" onclick="selectSettingsTheme(this)"></div>
-                    <div class="theme-swatch" style="background: #00daf3;" data-preset="cyan" onclick="selectSettingsTheme(this)"></div>
-                    <div class="theme-swatch" style="background: #f48fb1;" data-preset="rose" onclick="selectSettingsTheme(this)"></div>
+                <div class="space-y-3">
+                    <p class="text-xs text-on-surface-variant">空闲超过设定时间后自动退出登录，保护员工信息安全。</p>
+                    <div class="flex items-center gap-4">
+                        <select id="sessionTimeoutSelect" class="bg-surface-container-lowest border border-outline-variant rounded-xl px-4 py-3 text-sm text-on-surface outline-none focus:ring-2 focus:ring-primary/20">
+                            <option value="0.5">30 秒</option>
+                            <option value="3">3 分钟</option>
+                            <option value="10">10 分钟</option>
+                            <option value="30" selected>30 分钟</option>
+                            <option value="60">60 分钟</option>
+                            <option value="0">永不超时</option>
+                        </select>
+                        <button onclick="saveSessionTimeout()" class="bg-[#e8a849] hover:bg-[#ffc676] text-[#452b00] font-bold py-3 px-5 rounded-xl text-sm transition-all active:scale-95">保存</button>
+                    </div>
+                    <div id="sessionTimeoutMsg" class="text-xs text-on-surface-variant/50"></div>
                 </div>
-                <input id="settingsCustomColor" type="color" value="#e8a849" class="hidden mt-4 w-10 h-10 p-0 border-0 rounded-lg cursor-pointer">
-            </section>
-
-            <!-- CARD: System Info -->
-            <section class="bg-[#1f1f22] rounded-3xl p-8 border border-outline-variant/10 shadow-2xl relative">
-                <div class="flex items-center gap-3 mb-8">
-                    <span class="material-symbols-outlined" style="color: var(--theme-primary);">info</span>
-                    <h3 class="text-on-surface font-semibold tracking-tight">System Info</h3>
-                </div>
-                <div id="settingsInfo" class="space-y-4 font-mono text-sm"></div>
             </section>
 
             <!-- CARD: Memory Debug -->
@@ -384,8 +430,26 @@ setTimeout(function(){
     </div>
 </main>
 
+<!-- ===================== TAB: FILES ===================== -->
+<main id="tabFiles" class="ml-[256px] pt-[56px] pb-12 min-h-screen hidden">
+    <div class="max-w-4xl mx-auto px-12 pt-12">
+        <header class="mb-10">
+            <h2 class="text-[18px] font-bold text-[#e8a849] flex items-center gap-3">
+                <span class="material-symbols-outlined">folder_open</span> Files
+            </h2>
+            <div class="h-[1px] w-full bg-gradient-to-r from-outline-variant/50 to-transparent mt-4"></div>
+        </header>
+        <div id="fileList" class="space-y-2">
+            <div class="text-center text-on-surface-variant/50 py-20">
+                <span class="material-symbols-outlined text-4xl mb-2 block">folder_off</span>
+                Loading files...
+            </div>
+        </div>
+    </div>
+</main>
+
 <!-- ===================== FLOATING INPUT BAR ===================== -->
-<div id="inputBar" class="fixed bottom-0 right-0 left-[256px] flex flex-col items-center pb-3 px-8 pointer-events-none z-30">
+<div id="inputBar" class="fixed right-0 left-[256px] flex flex-col items-center px-8 pointer-events-none z-30" style="bottom: 90px;">
     <div class="w-full max-w-[900px] pointer-events-auto flex flex-col gap-3">
         <!-- Attachment preview -->
         <div id="attachmentPreview" class="hidden mb-1 bg-surface-container/80 backdrop-blur-xl p-3 rounded-xl border border-outline-variant/20">
@@ -574,18 +638,55 @@ setTimeout(function(){
     </div>
 </div>
 
-<!-- ===================== AUTH TOKEN MODAL ===================== -->
-<div id="authModal" class="modal-overlay" style="z-index:400;">
-    <div class="w-full max-w-[420px] bg-surface-container rounded-2xl shadow-2xl border border-outline-variant p-8 relative mx-6">
+<!-- ===================== LOGIN/REGISTER MODAL ===================== -->
+<div id="authModal" class="fixed inset-0 flex items-center justify-center z-50" style="background: rgba(0,0,0,0.35); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);">
+    <div class="w-full max-w-[420px] bg-[#1a1a2e] rounded-2xl shadow-2xl border border-outline-variant p-8 relative mx-6">
         <div class="flex flex-col items-center gap-4">
             <div class="w-14 h-14 rounded-2xl bg-surface-container-lowest flex items-center justify-center border border-outline-variant">
                 <span class="material-symbols-outlined text-primary text-3xl">lock</span>
             </div>
-            <h2 class="font-headline text-xl font-bold text-on-surface">Authentication Required</h2>
-            <p class="text-sm text-on-surface-variant text-center">Enter the API token shown in the server terminal.</p>
-            <input id="authTokenInput" type="password" class="w-full bg-surface-container-lowest border border-outline-variant rounded-xl px-4 py-3 text-center font-mono text-sm text-on-surface placeholder:text-outline focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none" placeholder="Paste token here...">
-            <button onclick="submitAuthToken()" class="w-full bg-primary-container text-on-primary font-bold py-3 px-6 rounded-xl text-sm transition-all active:scale-95">Authenticate</button>
-            <p id="authError" class="text-xs text-error hidden">Invalid token. Please try again.</p>
+            <h2 class="font-headline text-xl font-bold text-on-surface" id="authModalTitle">员工登录</h2>
+            <p class="text-sm text-on-surface-variant text-center" id="authModalSub">请输入你的账号密码</p>
+
+            <div id="loginForm" class="w-full space-y-4">
+                <input id="loginUsername" type="text" class="w-full bg-surface-container-lowest border border-outline-variant rounded-xl px-5 py-4 text-center text-base text-on-surface placeholder:text-outline/50 focus:ring-2 focus:ring-primary/30 focus:border-primary outline-none" placeholder="你的真实姓名">
+                <input id="loginPassword" type="password" class="w-full bg-surface-container-lowest border border-outline-variant rounded-xl px-5 py-4 text-center text-base text-on-surface placeholder:text-outline/50 focus:ring-2 focus:ring-primary/30 focus:border-primary outline-none" placeholder="密码" onkeydown="if(event.key==='Enter')submitLogin()">
+                <button onclick="submitLogin()" class="w-full bg-[#e8a849] hover:bg-[#ffc676] text-[#452b00] font-bold py-4 px-6 rounded-xl text-base transition-all active:scale-95 shadow-lg shadow-[#e8a849]/20">登 录</button>
+                <p id="authError" class="text-sm text-red-400 hidden text-center font-medium"></p>
+                <p class="text-sm text-on-surface-variant/60 text-center pt-2">
+                    还没有账号？
+                    <button onclick="showRegisterForm()" class="text-[#e8a849] font-bold hover:text-[#ffc676] underline text-base cursor-pointer bg-transparent border-none inline">注册新账号</button>
+                </p>
+            </div>
+
+            <div id="registerForm" class="w-full space-y-4 hidden">
+                <input id="regUsername" type="text" class="w-full bg-surface-container-lowest border border-outline-variant rounded-xl px-5 py-4 text-center text-base text-on-surface placeholder:text-outline/50 focus:ring-2 focus:ring-primary/30 focus:border-primary outline-none" placeholder="你的真实姓名（实名）">
+                <input id="regPassword" type="password" class="w-full bg-surface-container-lowest border border-outline-variant rounded-xl px-5 py-4 text-center text-base text-on-surface placeholder:text-outline/50 focus:ring-2 focus:ring-primary/30 focus:border-primary outline-none" placeholder="设置密码（至少4位）">
+                <input id="regPasswordConfirm" type="password" class="w-full bg-surface-container-lowest border border-outline-variant rounded-xl px-5 py-4 text-center text-base text-on-surface placeholder:text-outline/50 focus:ring-2 focus:ring-primary/30 focus:border-primary outline-none" placeholder="确认密码" onkeydown="if(event.key==='Enter')submitRegister()">
+                <button onclick="submitRegister()" class="w-full bg-[#e8a849] hover:bg-[#ffc676] text-[#452b00] font-bold py-4 px-6 rounded-xl text-base transition-all active:scale-95 shadow-lg shadow-[#e8a849]/20">注 册</button>
+                <p id="regError" class="text-sm text-red-400 hidden text-center font-medium"></p>
+                <p class="text-sm text-on-surface-variant/60 text-center pt-2">
+                    已有账号？
+                    <button onclick="showLoginForm()" class="text-[#e8a849] font-bold hover:text-[#ffc676] underline text-base cursor-pointer bg-transparent border-none inline">返回登录</button>
+                </p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ===================== AVATAR CROP MODAL ===================== -->
+<div id="avatarCropModal" class="fixed inset-0 z-50 hidden flex items-center justify-center" style="background: rgba(0,0,0,0.8); backdrop-filter: blur(8px);">
+    <div class="bg-[#1a1a2e] rounded-3xl p-8 max-w-lg w-full mx-6 border border-outline-variant/20 shadow-2xl">
+        <div class="flex items-center gap-3 mb-6">
+            <span class="material-symbols-outlined" style="color: var(--theme-primary);">crop</span>
+            <h3 class="font-headline text-lg font-bold text-on-surface">裁剪头像</h3>
+        </div>
+        <div class="relative w-full bg-surface-container-lowest rounded-2xl overflow-hidden mb-6" id="cropContainer">
+            <img id="cropImage" src="" style="max-width:100%;">
+        </div>
+        <div class="flex gap-3">
+            <button onclick="closeCropModal()" class="flex-1 bg-transparent hover:bg-white/5 border border-outline-variant text-on-surface-variant font-bold py-3 px-5 rounded-xl text-sm transition-all active:scale-95">取消</button>
+            <button id="cropSaveBtn" onclick="saveCroppedAvatar()" class="flex-1 bg-[#e8a849] hover:bg-[#ffc676] text-[#452b00] font-bold py-3 px-5 rounded-xl text-sm transition-all active:scale-95 shadow-lg shadow-[#e8a849]/20">保存头像</button>
         </div>
     </div>
 </div>
@@ -644,7 +745,7 @@ setTimeout(function(){
 
 <!-- Main entry: dynamic import to ensure module execution in all browser environments -->
 <script type="module">
-    import('/assets/js/main.js').catch(e => console.error('Main module load failed:', e));
+    import('/assets/js/main.js?v=2').catch(e => console.error('Main module load failed:', e));
 </script>
 
 </body>

@@ -196,11 +196,11 @@ export function switchIdentityTab(tab) {
 
 const translations = {
     en: {
-        chat: 'Chat', skills: 'Skills', memory: 'Memory', settings: 'Settings',
+        chat: 'Chat', skills: 'Skills', memory: 'Memory', files: 'Files', settings: 'Settings',
         newChat: 'New Chat', support: 'Support', langLabel: 'EN'
     },
     zh: {
-        chat: '对话', skills: '技能', memory: '记忆', settings: '设置',
+        chat: '对话', skills: '技能', memory: '记忆', files: '文件', settings: '设置',
         newChat: '新对话', support: '帮助', langLabel: '中'
     }
 };
@@ -217,7 +217,11 @@ export function applyLanguage(lang) {
     if (navItems[0]) navItems[0].innerHTML = `<span class="material-symbols-outlined text-[20px]">chat</span> ${t.chat}`;
     if (navItems[1]) navItems[1].innerHTML = `<span class="material-symbols-outlined text-[20px]">bolt</span> ${t.skills}`;
     if (navItems[2]) navItems[2].innerHTML = `<span class="material-symbols-outlined text-[20px]">database</span> ${t.memory}`;
-    if (navItems[3]) navItems[3].innerHTML = `<span class="material-symbols-outlined text-[20px]">settings</span> ${t.settings}`;
+    // navItems[3] is Files (newly added) — find settings by data-tab
+    const settingsBtn = document.querySelector('.nav-item[data-tab="settings"]');
+    const filesBtn = document.querySelector('.nav-item[data-tab="files"]');
+    if (filesBtn) filesBtn.innerHTML = `<span class="material-symbols-outlined text-[20px]">folder</span> ${t.files || 'Files'}`;
+    if (settingsBtn) settingsBtn.innerHTML = `<span class="material-symbols-outlined text-[20px]">settings</span> ${t.settings}`;
 
     const newChatBtn = document.querySelector('button[onclick="newSession()"]');
     if (newChatBtn) newChatBtn.innerHTML = `<span class="material-symbols-outlined text-[20px]">add</span> ${t.newChat}`;

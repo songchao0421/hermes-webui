@@ -141,6 +141,8 @@ from routers.memories import router as memories_router
 from routers.sessions import router as sessions_router
 from routers.skills import router as skills_router
 from routers.onboarding import router as onboarding_router
+from routers.files import router as files_router
+from routers.auth import router as auth_router
 from ratelimit import limit_10_per_minute
 
 app.include_router(persona_router)
@@ -150,6 +152,8 @@ app.include_router(skills_router)
 app.include_router(sessions_router)
 app.include_router(agent_router)
 app.include_router(onboarding_router)
+app.include_router(files_router)
+app.include_router(auth_router)
 
 # ── Rate-limit late-binding ──
 memories_router.routes[-2].dependencies = [Depends(limit_10_per_minute)]

@@ -18,8 +18,8 @@ _service: SkillService = None  # type: ignore[assignment]
 
 
 @router.get("/api/skills")
-async def get_skills():
-    return {"skills": _service.get_skills()}
+async def get_skills(request: Request):
+    return {"skills": _service.get_skills(request)}
 
 
 @router.post("/api/skills/import")
