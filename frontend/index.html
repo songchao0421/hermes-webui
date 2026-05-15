@@ -127,7 +127,7 @@ setTimeout(function(){
     </div>
     <!-- Brand text in top bar center -->
     <div id="brandBanner" class="flex-1 text-center text-[13px] font-bold tracking-[0.12em] select-none" style="color: var(--theme-primary); opacity: 0.4;">
-        量子实验室出品
+        品牌名称
     </div>
     <div class="flex items-center gap-6">
         <button id="langLabel" onclick="toggleLanguage()" title="切换语言"
@@ -192,12 +192,12 @@ setTimeout(function(){
         <!-- Header -->
         <div class="mb-8">
             <h2 class="text-[18px] font-bold font-headline mb-1" style="color: var(--theme-primary);">SOUL 配置</h2>
-            <p class="text-xs text-on-surface-variant/60">量子数字员工（只读）/ 本机 SOUL（可编辑）</p>
+            <p class="text-xs text-on-surface-variant/60">公共 SOUL（只读）/ 本机 SOUL（可编辑）</p>
         </div>
 
         <!-- SOUL Tabs -->
         <div class="flex gap-0.5 bg-surface-container-high rounded-xl p-0.5 mb-6 w-fit">
-            <button class="soul-tab px-4 py-2 rounded-lg text-xs font-bold transition-all bg-primary text-on-primary" data-soul-type="company" onclick="switchSoulTab('company')">量子数字员工</button>
+            <button class="soul-tab px-4 py-2 rounded-lg text-xs font-bold transition-all bg-primary text-on-primary" data-soul-type="company" onclick="switchSoulTab('company')">公共 SOUL</button>
             <button class="soul-tab px-4 py-2 rounded-lg text-xs font-bold transition-all text-on-surface-variant hover:bg-surface-container-highest" data-soul-type="local" onclick="switchSoulTab('local')">本机 SOUL</button>
         </div>
 
@@ -207,7 +207,7 @@ setTimeout(function(){
             <div class="flex items-center justify-between px-6 py-4 border-b border-outline-variant/10">
                 <div class="flex items-center gap-3">
                     <span class="material-symbols-outlined text-[18px] text-primary/60" id="soulIcon">group</span>
-                    <h3 class="font-bold text-sm text-on-surface" id="soulTitle">量子数字员工</h3>
+                    <h3 class="font-bold text-sm text-on-surface" id="soulTitle">公共 SOUL</h3>
                     <span class="text-[10px] px-2 py-0.5 rounded-full font-bold" id="soulBadge">只读</span>
                 </div>
                 <div class="flex items-center gap-2">

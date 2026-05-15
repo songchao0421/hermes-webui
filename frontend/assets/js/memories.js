@@ -146,12 +146,12 @@ export function toggleSoulEditMode() {
 
 async function loadSoulContent(type) {
     if (type === 'company') {
-        const content = '量子数字员工行为规则文件（待创建）\n\n存放在：~/Shared/公司公共SOUL.md\n\n此文件对所有员工只读。';
+        const content = '公共 SOUL 行为规则文件（待创建）\n\n存放在：~/Shared/公共SOUL.md\n\n此文件对所有员工只读。';
         showPreview(content);
         // Pre-fill editor too
         const textarea = document.getElementById('soulContent');
         if (textarea) textarea.value = content;
-        updateSoulStatus('info', '公司公共 SOUL · 只读');
+        updateSoulStatus('info', '公共 SOUL · 只读');
     } else {
         try {
             const resp = await apiFetch(apiUrl('/api/memories/file?path=SOUL.md'));
@@ -198,7 +198,7 @@ export function switchSoulTab(type) {
 
     if (type === 'company') {
         icon.textContent = 'group';
-        title.textContent = '量子数字员工';
+        title.textContent = '公共 SOUL';
         badge.textContent = '只读';
         badge.className = 'text-[10px] px-2 py-0.5 rounded-full font-bold bg-primary/10 text-primary/70';
         if (editBtn) editBtn.classList.add('hidden');

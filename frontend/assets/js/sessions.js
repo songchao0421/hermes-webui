@@ -135,12 +135,24 @@ export async function deleteSession(sessionId) {
     try {
         const resp = await apiFetch(apiUrl('/api/sessions/' + sessionId), { method: 'DELETE' });
         if (resp.ok) {
-            if (sessionId === state.currentSessionId) {
+            const wasCurrent = sessionId === state.currentSessionId;
+            if (wasCurrent) {
                 state.currentSessionId = '';
                 clearChatContainer();
             }
-            loadSessionList();
-            showToast('Session deleted');
+            // Reload list, then select first session if current was deleted
+            await loadSessionList();
+            if (wasCurrent) {
+                // Auto-select the new session that backend created
+                const listResp = await apiFetch(apiUrl('/api/sessions'));
+                const listData = await listResp.json();
+                const sessions = listData.sessions || [];
+                if (sessions.length > 0) {
+                    state.currentSessionId = sessions[0].id;
+                    updateSessionIdDisplay();
+                }
+            }
+            showToast('对话已删除');
         }
     } catch (e) { showToast('Error: ' + e.message); }
 }
