@@ -20,6 +20,9 @@ from services.session_manager import (
     conversations, current_session_id, save_session, load_all_sessions,
     load_session as load_session_fn,
     _evict_old_sessions,
+    get_sessions_for_user,
+    get_owner_of_session,
+    set_session_owner,
 )
 
 logger = logging.getLogger(__name__)
@@ -76,6 +79,9 @@ async def lifespan(app: FastAPI):
     _sess._SESSIONS_DIR = get_sessions_dir()
     _sess._load_session = load_session_fn
     _sess._evict_old_sessions = _evict_old_sessions
+    _sess.set_session_owner = set_session_owner
+    _sess.get_owner_of_session = get_owner_of_session
+    _sess.remove_session_owner = remove_session_owner
 
     from services.skill_service import SkillService
     from services.webui_config import load_webui_config, save_webui_config
@@ -103,17 +109,21 @@ async def lifespan(app: FastAPI):
     _agent_router._model_switch = _ms
 
     # ── Banner ──
+    total_sessions = sum(len(v) for v in conversations.values())
+    total_users = len(conversations)
     logger.info("=" * 60)
-    logger.info("  Hermes WebUI — Agent Console")
+    logger.info("  Hermes WebUI — Agent Console v2.1")
     logger.info("=" * 60)
-    logger.info("  Sessions  : %d loaded", len(conversations))
+    logger.info("  Users     : %d", total_users)
+    logger.info("  Sessions  : %d loaded", total_sessions)
     logger.info("  Auth      : %s", "disabled" if not is_auth_enabled() else "enabled")
     logger.info("=" * 60)
 
     yield
     logger.info("Shutting down — saving sessions...")
-    for sid, msgs in conversations.items():
-        save_session(sid, msgs)
+    for uid, sessions in conversations.items():
+        for sid, msgs in sessions.items():
+            save_session(sid, msgs, owner=uid)
 
 # ── FastAPI App ───────────────────────────────────────────────────
 app = FastAPI(
@@ -126,8 +136,13 @@ app = FastAPI(
 
 app.add_exception_handler(RateLimitExceeded, rate_limit_exceeded_handler)
 
-# CORS
-_origins = [f"http://localhost:{p}" for p in (8080, 8081, 8082, 8083)]
+# CORS — 白名单：本地 + 内网
+_origins = [
+    "http://localhost:8080",
+    "http://127.0.0.1:8080",
+    "http://192.168.1.20",
+    "https://192.168.1.20",
+]
 env_origins = os.environ.get("HERMES_CORS_ORIGINS", "")
 if env_origins:
     _origins.extend(o.strip() for o in env_origins.split(",") if o.strip())
@@ -143,6 +158,7 @@ from routers.skills import router as skills_router
 from routers.onboarding import router as onboarding_router
 from routers.files import router as files_router
 from routers.auth import router as auth_router
+from routers.admin import router as admin_router
 from ratelimit import limit_10_per_minute
 
 app.include_router(persona_router)
@@ -154,6 +170,7 @@ app.include_router(agent_router)
 app.include_router(onboarding_router)
 app.include_router(files_router)
 app.include_router(auth_router)
+app.include_router(admin_router)
 
 # ── Rate-limit late-binding ──
 memories_router.routes[-2].dependencies = [Depends(limit_10_per_minute)]

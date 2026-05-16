@@ -118,3 +118,24 @@ limit_10_per_minute  = _make_simple_rate_limit("10/minute")
 limit_20_per_minute  = _make_simple_rate_limit("20/minute")
 limit_60_per_minute  = _make_simple_rate_limit("60/minute")
 limit_5_per_second   = _make_simple_rate_limit("5/second")
+
+
+# ── User-aware rate limit (keyed by auth_user instead of IP) ─────────
+
+def _user_key(request: Request) -> str:
+    """Extract auth username as rate limit key. Falls back to IP."""
+    username = getattr(request.state, "auth_user", None)
+    if username:
+        return f"user:{username}"
+    return _client_ip(request)
+
+
+async def _limit_agent_stream(request: Request) -> None:
+    """User-level rate limit for SSE agent stream: 10/minute per user."""
+    if _is_disabled():
+        return
+    client_key = _user_key(request)
+    items = list(parse_many("10/minute"))
+    for item in items:
+        if not _strategy.hit(item, client_key, "agent_stream"):
+            raise RateLimitExceeded("10/minute")

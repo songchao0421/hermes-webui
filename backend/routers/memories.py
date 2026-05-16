@@ -1,6 +1,8 @@
 """
 Hermes WebUI — Memories Router
 Manage memory files (SOUL.md, MEMORY.md, USER.md).
+
+v2.1: 多用户隔离 — extract 只使用当前用户的 session，memory write 加审计日志。
 """
 import json
 import re as _re
@@ -9,6 +11,7 @@ from datetime import datetime
 import httpx
 from fastapi import APIRouter, HTTPException, Request
 from services.ollama_service import get_ollama_models_async
+from services.session_manager import get_owner_of_session
 
 router = APIRouter(tags=["memories"])
 
@@ -22,6 +25,11 @@ _load_session = None
 
 # ── Memory model ────────────────────────────────────────────────
 from models import MemoryUpdate
+
+
+def _get_user_id(request: Request) -> str:
+    username = getattr(request.state, "auth_user", "anonymous")
+    return username or "anonymous"
 
 
 @router.get("/api/memories")
@@ -40,12 +48,17 @@ async def get_memory_file(path: str = "SOUL.md"):
 
 
 @router.put("/api/memories/{filename}")
-async def update_memory(filename: str, body: MemoryUpdate):
+async def update_memory(filename: str, body: MemoryUpdate, request: Request):
     """Update a memory file."""
     if filename not in ("SOUL.md", "MEMORY.md", "USER.md"):
         raise HTTPException(status_code=400, detail="Invalid memory file")
 
     if _bridge.write_memory(filename, body.content):
+        user_id = _get_user_id(request)
+        from audit import audit_memory_write
+        forwarded = request.headers.get("X-Forwarded-For")
+        ip = forwarded.split(",")[0].strip() if forwarded else (request.client.host if request.client else None)
+        audit_memory_write(user_id, filename, ip)
         return {"status": "ok"}
     else:
         raise HTTPException(status_code=500, detail="Failed to write memory")
@@ -54,18 +67,29 @@ async def update_memory(filename: str, body: MemoryUpdate):
 @router.post("/api/memories/extract")
 async def extract_memories(request: Request):
     """
-    Use the local LLM to extract memory items from recent conversations.
+    Use the local LLM to extract memory items from current user's conversations.
     Body: { "session_ids": [...], "categories": ["prefs","projects","env"] }
     Returns: { "suggestions": [{"action":"add|update|remove","file":"MEMORY.md","text":"..."}] }
     """
+    user_id = _get_user_id(request)
     body = await request.json()
     session_ids = body.get("session_ids", [_current_session_id])
     categories = body.get("categories", ["prefs", "projects", "env"])
 
     all_messages = []
     for sid in session_ids:
-        msgs = _conversations.get(sid) or _load_session(sid)
-        all_messages.extend(msgs)
+        # 只允许加载当前用户的 session
+        owner = get_owner_of_session(sid)
+        if owner and owner != user_id:
+            continue  # 跳过他人会话
+
+        # 从用户的内存会话中获取
+        user_sessions = _conversations.get(user_id, {})
+        msgs = user_sessions.get(sid) or _load_session(sid)
+        if msgs:
+            owner = get_owner_of_session(sid)
+            if owner is None or owner == user_id:
+                all_messages.extend(msgs)
 
     if not all_messages:
         return {"suggestions": [], "message": "No conversation history found"}
@@ -138,6 +162,7 @@ async def apply_memory_suggestions(request: Request):
     """Apply selected memory suggestions from /api/memories/extract."""
     body = await request.json()
     suggestions = body.get("suggestions", [])
+    user_id = _get_user_id(request)
     results = []
     for s in suggestions:
         file = s.get("file", "MEMORY.md")
@@ -163,8 +188,9 @@ async def apply_memory_suggestions(request: Request):
 
 
 @router.post("/api/memories/snapshot")
-async def memory_snapshot():
+async def memory_snapshot(request: Request):
     """Create a timestamped snapshot of all memory files."""
+    user_id = _get_user_id(request)
     snap_dir = _get_memory_snapshots_dir()
     snap_dir.mkdir(parents=True, exist_ok=True)
     ts = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -175,4 +201,6 @@ async def memory_snapshot():
             snap_file = snap_dir / f"{ts}_{fname}"
             snap_file.write_text(content, encoding="utf-8")
             saved.append(fname)
+    from audit import audit_memory_snapshot
+    audit_memory_snapshot(user_id, saved)
     return {"status": "ok", "snapshot": ts, "files": saved}

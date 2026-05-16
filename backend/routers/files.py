@@ -123,6 +123,11 @@ async def download_file(source: str, filename: str, request: Request):
     if media_type is None:
         media_type = "application/octet-stream"
 
+    from audit import audit_file_download
+    forwarded = request.headers.get("X-Forwarded-For")
+    ip = forwarded.split(",")[0].strip() if forwarded else (request.client.host if request.client else None)
+    audit_file_download(username, filename, source, ip)
+
     return FileResponse(
         path=str(filepath),
         media_type=media_type,

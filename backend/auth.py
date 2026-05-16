@@ -14,7 +14,11 @@ from fastapi import Request, HTTPException, Depends
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 
 from config import get_auth_dir, get_auth_token_file
-from user_auth import verify_token as verify_user_token
+from user_auth import (
+    verify_token as verify_user_token,
+    check_token_expired,
+    renew_token_activity,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -102,13 +106,26 @@ async def require_auth(
             headers={"WWW-Authenticate": "Bearer"},
         )
 
-    result = verify_token(credentials.credentials)
+    token = credentials.credentials
+    result = verify_token(token)
     if not result:
         raise HTTPException(
             status_code=401,
             detail="Invalid authentication token",
             headers={"WWW-Authenticate": "Bearer"},
         )
+
+    # 检查用户 token 是否过期（server token 不过期）
+    if result != "server" and check_token_expired(token):
+        raise HTTPException(
+            status_code=401,
+            detail="Token expired — please login again",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    # 续期用户 token 活动时间（server token 不需要）
+    if result != "server":
+        renew_token_activity(token)
 
     # Store user info in request state
     request.state.auth_user = result

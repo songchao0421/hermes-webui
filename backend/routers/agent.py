@@ -13,12 +13,17 @@ import logging
 import uuid
 from pathlib import Path
 
-from fastapi import APIRouter, File, UploadFile, HTTPException
+from fastapi import APIRouter, File, UploadFile, HTTPException, Request, Depends
 from fastapi.responses import JSONResponse
 
 from models import AgentRequest
 from config import get_upload_dir
 from _hermes_sdk_bridge import HermesSDKBridge
+from services.session_manager import (
+    get_owner_of_session,
+    set_session_owner,
+    get_session_lock,
+)
 
 logger = logging.getLogger("hermes_webui.agent")
 
@@ -28,15 +33,23 @@ router = APIRouter(prefix="/api/agent", tags=["agent"])
 _bridge: HermesSDKBridge = HermesSDKBridge()
 
 # Session-level globals set by lifespan (app.py)
-_conversations = None   # dict[session_id] -> list[message]
-_current_session_id = None  # list[session_id] (stack)
-_save_session = None    # save_session(session_id, messages)
+# conversations is now: dict[user_id][session_id] -> [messages]
+_conversations = None
+_current_session_id = None  # str
+_save_session = None    # save_session(session_id, messages, owner=user_id)
 _WSL_MODE = False
 _model_switch = None    # model_switch module (for task routing)
 
 
+def _get_user_id(request: Request) -> str:
+    username = getattr(request.state, "auth_user", "anonymous")
+    return username or "anonymous"
+
+
+from ratelimit import _limit_agent_stream
+
 @router.post("/stream")
-async def agent_stream(payload: AgentRequest):
+async def agent_stream(payload: AgentRequest, request: Request, _rate: None = Depends(_limit_agent_stream)):
     """Start a conversation turn against the Hermes Agent SDK.
 
     Request body (JSON):
@@ -155,15 +168,20 @@ async def agent_abort():
     return {"ok": True, "message": "Abort signal sent"}
 
 
+# ── 上传限制 ─────────────────────────────────────────────────────────
+MAX_UPLOAD_SIZE = 200 * 1024 * 1024  # 200 MB
+
+
 # ---------------------------------------------------------------------------
 # Upload attachments
 # ---------------------------------------------------------------------------
 
 @router.post("/upload")
-async def agent_upload(file: UploadFile = File(...)):
+async def agent_upload(file: UploadFile = File(...), request: Request = None):
     """Upload a file to be used as an attachment in the next agent message.
 
     Returns a file_id that can be passed to /api/agent/stream.
+    Max file size: 200 MB.
     """
     upload_dir = get_upload_dir()
     upload_dir.mkdir(parents=True, exist_ok=True)
@@ -174,9 +192,20 @@ async def agent_upload(file: UploadFile = File(...)):
 
     try:
         content = await file.read()
+        if len(content) > MAX_UPLOAD_SIZE:
+            raise HTTPException(status_code=413, detail=f"文件过大，最大允许 {MAX_UPLOAD_SIZE // (1024*1024)} MB")
         dest.write_bytes(content)
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Upload failed: {e}")
+
+    # 审计日志
+    user_id = _get_user_id(request) if request else "unknown"
+    forwarded = request.headers.get("X-Forwarded-For") if request else None
+    ip = forwarded.split(",")[0].strip() if forwarded else (request.client.host if request and request.client else None)
+    from audit import audit_file_upload
+    audit_file_upload(user_id, file.filename or "file", len(content), ip)
 
     return {
         "file_id": file_id,
@@ -187,10 +216,16 @@ async def agent_upload(file: UploadFile = File(...)):
 
 
 @router.post("/attachments")
-async def agent_attachments(files: list[UploadFile] = File(...)):
-    """Upload multiple files at once. Returns list of file_id entries."""
+async def agent_attachments(files: list[UploadFile] = File(...), request: Request = None):
+    """Upload multiple files at once. Returns list of file_id entries.
+    Max per-file size: 200 MB.
+    """
     upload_dir = get_upload_dir()
     upload_dir.mkdir(parents=True, exist_ok=True)
+
+    user_id = _get_user_id(request) if request else "unknown"
+    forwarded = request.headers.get("X-Forwarded-For") if request else None
+    ip = forwarded.split(",")[0].strip() if forwarded else (request.client.host if request and request.client else None)
 
     results = []
     for f in files:
@@ -199,6 +234,13 @@ async def agent_attachments(files: list[UploadFile] = File(...)):
         dest = upload_dir / file_id
         try:
             content = await f.read()
+            if len(content) > MAX_UPLOAD_SIZE:
+                results.append({
+                    "file_id": None,
+                    "filename": f.filename or "file",
+                    "error": f"文件过大，最大允许 {MAX_UPLOAD_SIZE // (1024*1024)} MB",
+                })
+                continue
             dest.write_bytes(content)
             results.append({
                 "file_id": file_id,
@@ -206,6 +248,8 @@ async def agent_attachments(files: list[UploadFile] = File(...)):
                 "size": len(content),
                 "path": str(dest),
             })
+            from audit import audit_file_upload
+            audit_file_upload(user_id, f.filename or "file", len(content), ip)
         except Exception as e:
             results.append({
                 "file_id": None,
@@ -216,21 +260,28 @@ async def agent_attachments(files: list[UploadFile] = File(...)):
 
 
 # ---------------------------------------------------------------------------
-# Session operations (undo / retry / rename)
+# Session operations (undo / retry / rename) — user-isolated
 # ---------------------------------------------------------------------------
 
+def _get_session_messages(request: Request, session_id: str):
+    """Get messages for a session, verifying user ownership. Raises HTTPException on failure."""
+    user_id = _get_user_id(request)
+    owner = get_owner_of_session(session_id)
+    if owner and owner != user_id:
+        raise HTTPException(status_code=403, detail="无权操作他人会话")
+    if user_id in _conversations and session_id in _conversations[user_id]:
+        return _conversations[user_id][session_id], user_id
+    raise HTTPException(status_code=404, detail="Session not found")
+
+
 @router.post("/session/undo")
-async def session_undo(payload: dict):
+async def session_undo(payload: dict, request: Request):
     """Undo the last assistant turn: remove the last user+assistant message pair."""
     session_id = payload.get("session_id")
     if not session_id:
         return JSONResponse({"error": "session_id is required"}, status_code=400)
 
-    convos = _conversations
-    if not convos or session_id not in convos:
-        return JSONResponse({"error": "Session not found"}, status_code=404)
-
-    messages = convos[session_id]
+    messages, user_id = _get_session_messages(request, session_id)
     if len(messages) < 2:
         return JSONResponse({"error": "Nothing to undo"}, status_code=400)
 
@@ -248,24 +299,20 @@ async def session_undo(payload: dict):
             break
 
     if removed_user:
-        _save_session(session_id, messages) if _save_session else None
+        _save_session(session_id, messages, owner=user_id) if _save_session else None
         return {"ok": True, "last_user_message": removed_user if isinstance(removed_user, dict) else {}}
 
     return {"ok": True, "last_user_message": None}
 
 
 @router.post("/session/retry")
-async def session_retry(payload: dict):
+async def session_retry(payload: dict, request: Request):
     """Retry: undo last assistant turn and return the last user message to resend."""
     session_id = payload.get("session_id")
     if not session_id:
         return JSONResponse({"error": "session_id is required"}, status_code=400)
 
-    convos = _conversations
-    if not convos or session_id not in convos:
-        return JSONResponse({"error": "Session not found"}, status_code=404)
-
-    messages = convos[session_id]
+    messages, user_id = _get_session_messages(request, session_id)
     if not messages:
         return JSONResponse({"error": "Nothing to retry"}, status_code=400)
 
@@ -283,21 +330,21 @@ async def session_retry(payload: dict):
             break
 
     if last_user_content:
-        _save_session(session_id, messages) if _save_session else None
+        _save_session(session_id, messages, owner=user_id) if _save_session else None
         return {"ok": True, "retry_message": last_user_content}
 
     return {"ok": True, "retry_message": None}
 
 
 @router.post("/session/rename")
-async def session_rename(payload: dict):
-    """Rename a session. Only updates the session store — no changes to AIAgent."""
+async def session_rename(payload: dict, request: Request):
+    """Rename a session. Verifies user ownership."""
     session_id = payload.get("session_id")
     new_name = payload.get("name", "").strip()
     if not session_id or not new_name:
         return JSONResponse({"error": "session_id and name are required"}, status_code=400)
-    # Session name is stored in the frontend's session list, not in agent state.
-    # We just acknowledge.
+    # Verify ownership
+    _get_session_messages(request, session_id)
     return {"ok": True, "name": new_name}
 
 

@@ -144,15 +144,16 @@ class TestCheckOverride:
 class TestDecideRouting:
     """Full routing decision integration tests."""
 
-    def test_simple_message_local(self, fake_profiles, active_local):
+    def test_simple_message_keep_remote(self, fake_profiles, active_local):
+        """Simple messages now stay on remote (remote-first mode, no attachments)."""
         from services.task_router import decide_routing
         decision = decide_routing(
             message="复制文件到目标目录",
             active_profile=active_local,
             profiles=fake_profiles,
         )
-        assert decision["target_tier"] == "local", f"Expected local for simple copy, got {decision}"
-        assert decision["needs_switch"] is False
+        assert decision["target_tier"] == "remote", f"Remote-first keeps remote for simple copy, got {decision}"
+        assert decision["needs_switch"] is True  # local → remote switch needed
 
     def test_complex_message_remote(self, fake_profiles, active_local):
         from services.task_router import decide_routing
@@ -198,22 +199,20 @@ class TestDecideRouting:
         assert decision["needs_switch"] is False
         assert decision["target_tier"] in ("local", "remote")
 
-    def test_already_on_remote_low_score_still_switches(self, fake_profiles, active_remote):
-        """Very low score task switches FROM remote to local.
-        
-        score <= 20 branch sets local regardless of current profile."""
+    def test_already_on_remote_low_score_keeps_remote(self, fake_profiles, active_remote):
+        """Low score task stays on remote (remote-first mode, no attachment fallback)."""
         from services.task_router import decide_routing
         decision = decide_routing(
             message="看看文件列表",
             active_profile=active_remote,
             profiles=fake_profiles,
         )
-        assert decision["target_tier"] == "local", (
-            f"Trivial message should target local even when on remote, "
+        assert decision["target_tier"] == "remote", (
+            f"Remote-first keeps remote for trivial ls, "
             f"got target_tier={decision['target_tier']}"
         )
-        assert decision["needs_switch"] is True, (
-            f"Trivial message on remote should trigger switch to local"
+        assert decision["needs_switch"] is False, (
+            f"Already on remote, should not switch"
         )
 
     def test_borderline_score_keeps_remote(self, fake_profiles, active_remote):
