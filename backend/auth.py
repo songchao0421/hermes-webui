@@ -52,8 +52,34 @@ def get_or_create_token() -> str:
     try:
         TOKEN_FILE.chmod(0o600)
     except OSError:
-        pass
+        logger.warning("无法设置 Token 文件权限为 600（非 POSIX 系统属正常情况）: %s", TOKEN_FILE)
     return token
+
+
+def check_token_file_permissions() -> dict:
+    """检查 Token 文件是否存在权限风险。启动时调用，只报 warn 不阻止运行。"""
+    info = {"secure": True, "warnings": []}
+    if not TOKEN_FILE.exists():
+        info["secure"] = True
+        return info
+    try:
+        mode = TOKEN_FILE.stat().st_mode
+        # Check "other" permissions (non-owner, non-group)
+        if mode & 0o007:
+            info["secure"] = False
+            info["warnings"].append(
+                f"Token 文件权限不安全: {oct(mode)}（其他用户可读）"
+                f" — 建议执行: chmod 600 {TOKEN_FILE}"
+            )
+        # Check group permissions
+        if mode & 0o070:
+            info["warnings"].append(
+                f"Token 文件同组用户可读: {oct(mode)}"
+                f" — 建议执行: chmod 600 {TOKEN_FILE}"
+            )
+    except OSError as e:
+        info["warnings"].append(f"无法检查 Token 文件权限: {e}")
+    return info
 
 
 def verify_token(token: str) -> Optional[str]:

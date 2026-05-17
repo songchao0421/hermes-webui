@@ -56,8 +56,8 @@ async def update_memory(filename: str, body: MemoryUpdate, request: Request):
     if _bridge.write_memory(filename, body.content):
         user_id = _get_user_id(request)
         from audit import audit_memory_write
-        forwarded = request.headers.get("X-Forwarded-For")
-        ip = forwarded.split(",")[0].strip() if forwarded else (request.client.host if request.client else None)
+        from config import resolve_client_ip
+        ip = resolve_client_ip(request)
         audit_memory_write(user_id, filename, ip)
         return {"status": "ok"}
     else:

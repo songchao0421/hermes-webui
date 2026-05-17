@@ -31,7 +31,10 @@ _evict_old_sessions = None
 
 
 def _get_user_id(request: Request) -> str:
-    """从 request state 中获取当前用户 ID。"""
+    """从 request state 中获取当前用户 ID。auth 关闭时返回默认用户。"""
+    from auth import is_auth_enabled
+    if not is_auth_enabled():
+        return "local_user"
     username = getattr(request.state, "auth_user", None)
     if not username:
         raise HTTPException(status_code=401, detail="请先登录")
@@ -39,12 +42,9 @@ def _get_user_id(request: Request) -> str:
 
 
 def _get_client_ip(request: Request) -> Optional[str]:
-    forwarded = request.headers.get("X-Forwarded-For")
-    if forwarded:
-        return forwarded.split(",")[0].strip()
-    if request.client:
-        return request.client.host
-    return None
+    """提取客户端 IP，X-Forwarded-For 仅当直连 IP 属于可信代理时才使用。"""
+    from config import resolve_client_ip
+    return resolve_client_ip(request)
 
 
 @router.get("/api/sessions")

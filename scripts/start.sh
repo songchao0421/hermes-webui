@@ -6,6 +6,8 @@ set -e
 
 CYAN='\033[0;36m'
 GREEN='\033[0;32m'
+RED='\033[0;31m'
+YELLOW='\033[1;33m'
 NC='\033[0m'
 BOLD='\033[1m'
 
@@ -43,12 +45,6 @@ echo ""
 
 cd "$PROJECT_DIR/backend"
 
-# Use python3 if python is not available (common on Linux/WSL2)
-PYTHON_BIN="python"
-if ! command -v python &>/dev/null; then
-    PYTHON_BIN="python3"
-fi
-
 # Try ports in sequence if the preferred port is busy
 for TRY_PORT in "$PORT" 8081 8082 8083; do
     if lsof -iTCP:"$TRY_PORT" -sTCP:LISTEN -t &>/dev/null 2>&1; then
@@ -58,7 +54,7 @@ for TRY_PORT in "$PORT" 8081 8082 8083; do
     if [ "$TRY_PORT" != "$PORT" ]; then
         echo -e "  Using port ${GREEN}$TRY_PORT${NC}"
     fi
-    "$PYTHON_BIN" app.py --host "$HOST" --port "$TRY_PORT"
+    python app.py --host "$HOST" --port "$TRY_PORT"
     exit $?
 done
 

@@ -1,12 +1,23 @@
 """
 Hermes WebUI - Test Fixtures
+
+Each test session gets its own isolated temp data directory
+via HERMES_WEBUI_HOME, preventing writes to the real
+~/.hermes/hermes-webui/ production data.
 """
 
 import sys
 import os
+import tempfile
 import pytest
 from pathlib import Path
 from unittest.mock import patch, MagicMock
+
+# ── Test Data Isolation ────────────────────────────────────────────
+# Must happen BEFORE any import of config/auth/app so that
+# get_data_dir() caches the temp dir, not the production path.
+_TEST_DATA_DIR = Path(tempfile.mkdtemp(prefix="hermes-webui-test-"))
+os.environ["HERMES_WEBUI_HOME"] = str(_TEST_DATA_DIR)
 
 # Add backend to path
 sys.path.insert(0, str(Path(__file__).parent.parent / "backend"))
@@ -63,3 +74,19 @@ def token():
     """Get or create an auth token."""
     from auth import get_or_create_token
     return get_or_create_token()
+
+
+@pytest.fixture(scope="session", autouse=True)
+def _cleanup_test_data():
+    """Clean up the isolated test data dir after all tests."""
+    yield
+    import shutil
+    if _TEST_DATA_DIR.exists():
+        shutil.rmtree(_TEST_DATA_DIR, ignore_errors=True)
+
+
+# Expose the temp dir for debugging: pytest --basetemp=<path>
+@pytest.fixture
+def test_data_dir() -> Path:
+    """Return the isolated test data directory path."""
+    return _TEST_DATA_DIR

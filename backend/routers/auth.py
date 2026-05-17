@@ -6,7 +6,7 @@ import logging
 from fastapi import APIRouter, HTTPException, Request, Depends
 from pydantic import BaseModel, Field
 from user_auth import (
-    register_user, login_user, verify_token, get_user_workspace,
+    register_user, login_user, logout_user, verify_token, get_user_workspace,
     change_password, check_token_expired, renew_token_activity,
 )
 from ratelimit import RateLimit
@@ -26,21 +26,18 @@ class TokenRequest(BaseModel):
 
 
 class ChangePasswordRequest(BaseModel):
-    old_password: str = Field(..., min_length=1)
-    new_password: str = Field(..., min_length=6, max_length=128)
+    old_password: str = Field(..., min_length=1, max_length=128)
+    new_password: str = Field(..., min_length=8, max_length=128)
 
 
 def _get_client_ip(request: Request) -> str:
-    forwarded = request.headers.get("X-Forwarded-For")
-    if forwarded:
-        return forwarded.split(",")[0].strip()
-    if request.client:
-        return request.client.host or "unknown"
-    return "unknown"
+    """提取客户端 IP，X-Forwarded-For 仅当直连 IP 属于可信代理时才使用。"""
+    from config import resolve_client_ip
+    return resolve_client_ip(request)
 
 
 @router.post("/register")
-async def api_register(req: AuthRequest, request: Request, _rate: None = Depends(RateLimit("3/hour"))):
+async def api_register(req: AuthRequest, request: Request, _rate: None = Depends(RateLimit("10/hour"))):
     """Register a new user account."""
     result = register_user(req.username.strip(), req.password)
     if not result["success"]:
@@ -51,7 +48,7 @@ async def api_register(req: AuthRequest, request: Request, _rate: None = Depends
 
 
 @router.post("/login")
-async def api_login(req: AuthRequest, request: Request):
+async def api_login(req: AuthRequest, request: Request, _rate: None = Depends(RateLimit("10/minute"))):
     """Login with username and password."""
     result = login_user(req.username.strip(), req.password)
     if not result["success"]:
@@ -70,7 +67,7 @@ async def api_login(req: AuthRequest, request: Request):
 
 
 @router.post("/verify")
-async def api_verify(req: TokenRequest):
+async def api_verify(req: TokenRequest, _rate: None = Depends(RateLimit("60/minute"))):
     """Verify a token and return user info. Also checks TTL."""
     username = verify_token(req.token)
     if not username:
@@ -92,13 +89,29 @@ async def api_verify(req: TokenRequest):
 
 
 @router.post("/change-password")
-async def api_change_password(req: ChangePasswordRequest, request: Request):
+async def api_change_password(req: ChangePasswordRequest, request: Request, _rate: None = Depends(RateLimit("5/minute"))):
     """用户自行修改密码。"""
     username = getattr(request.state, "auth_user", None)
     if not username or username == "server":
         raise HTTPException(status_code=401, detail="请先以用户身份登录")
 
     result = change_password(username, req.old_password, req.new_password)
+    if not result["success"]:
+        raise HTTPException(status_code=400, detail=result["message"])
+    return result
+
+
+@router.post("/logout")
+async def api_logout(request: Request, _rate: None = Depends(RateLimit("20/minute"))):
+    """服务端登出：清除当前 token，强制该设备下线。
+
+    要求已登录。登出后客户端应清除 localStorage 中的 token。
+    """
+    username = getattr(request.state, "auth_user", None)
+    if not username or username == "server":
+        raise HTTPException(status_code=401, detail="请先以用户身份登录")
+
+    result = logout_user(username)
     if not result["success"]:
         raise HTTPException(status_code=400, detail=result["message"])
     return result

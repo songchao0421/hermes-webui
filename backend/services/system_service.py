@@ -131,8 +131,14 @@ async def stream_update() -> AsyncGenerator[str, None]:
       data: {"log": "..."}
       data: {"error": "..."}
       data: {"restart": true, "host": "...", "port": ...}
+
+    ⚠️ 安全提醒：本自更新机制通过 git pull --ff-only 拉取代码后直接执行，
+    没有对 commit 做 GPG 签名验证或哈希校验。攻击者若控制了 GitHub 仓库
+    或中间人篡改提交，可导致任意代码执行。
+    生产环境建议：禁用自动更新，手动审查每次更新后再部署。
     """
     try:
+        logger.warning("执行自更新（无签名验证），建议生产环境禁用此功能")
         proc = await asyncio.create_subprocess_exec(
             "git", "pull", "--ff-only",
             cwd=str(PROJECT_ROOT),

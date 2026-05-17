@@ -126,9 +126,6 @@ async def api_get_audit_logs(request: Request, limit: int = 100):
 # ── Helpers ──────────────────────────────────────────────────────────
 
 def _get_ip(request: Request) -> str:
-    forwarded = request.headers.get("X-Forwarded-For")
-    if forwarded:
-        return forwarded.split(",")[0].strip()
-    if request.client:
-        return request.client.host or "unknown"
-    return "unknown"
+    """提取客户端 IP，X-Forwarded-For 仅当直连 IP 属于可信代理时才使用。"""
+    from config import resolve_client_ip
+    return resolve_client_ip(request)

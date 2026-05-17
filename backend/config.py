@@ -242,7 +242,57 @@ def detect_windows_home() -> Optional[Path]:
     return None
 
 
-# ── Tool Detection ────────────────────────────────────────────────
+# ── 可信代理配置 ──────────────────────────────────────────────────
+# 当 Hermes WebUI 运行在 nginx / caddy / cloudflared 等反向代理之后时，
+# 必须在此添加代理的 IP 地址，否则 X-Forwarded-For 可能被伪造。
+#
+# 配置方式（任选其一）:
+#   1. 环境变量 HERMES_TRUSTED_PROXIES="10.0.0.1,192.168.1.10"
+#   2. config.yaml 文件: trusted_proxies: ["10.0.0.1", "192.168.1.10"]
+#
+# 安全提醒: 如果列表为空（默认），X-Forwarded-For 将被忽略，
+#           速率限制和审计日志以直连 IP 为准。
+#           这是最安全的默认行为。
+def get_trusted_proxies() -> set:
+    """获取可信代理 IP 集合。"""
+    cfg = load_config()
+    proxies = set()
+
+    # 1. config.yaml 优先
+    cfg_proxies = cfg.get("trusted_proxies") or (cfg.get("server") or {}).get("trusted_proxies")
+    if isinstance(cfg_proxies, list):
+        proxies.update(p.strip() for p in cfg_proxies if p.strip())
+
+    # 2. 环境变量覆盖
+    env_proxies = os.environ.get("HERMES_TRUSTED_PROXIES", "")
+    if env_proxies:
+        proxies.update(p.strip() for p in env_proxies.split(",") if p.strip())
+
+    return proxies
+
+
+def resolve_client_ip(request) -> str:
+    """安全地提取客户端真实 IP。
+
+    X-Forwarded-For 只在直连 IP 属于可信代理时才被信任，
+    否则以直连 IP 为准。这防止了客户端伪造 IP 头绕过
+    速率限制和审计追踪。
+
+    Args:
+        request: FastAPI Request 对象（鸭子类型，只需要 .headers.get 和 .client）
+
+    Returns:
+        解析后的客户端 IP 字符串
+    """
+    direct_ip = request.client.host if request.client else "unknown"
+
+    forwarded = request.headers.get("X-Forwarded-For")
+    if forwarded and direct_ip != "unknown":
+        trusted = get_trusted_proxies()
+        if trusted and direct_ip in trusted:
+            return forwarded.split(",")[0].strip()
+
+    return direct_ip
 
 
 def find_hermes() -> Optional[str]:

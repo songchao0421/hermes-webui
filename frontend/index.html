@@ -133,9 +133,8 @@ setTimeout(function(){
         </div>
         <div class="h-4 w-[1.5px] bg-outline-variant/30"></div>
     </div>
-    <!-- Brand text in top bar center -->
-    <div id="brandBanner" class="flex-1 text-center text-[13px] font-bold tracking-[0.12em] select-none" style="color: var(--theme-primary); opacity: 0.4;">
-        品牌名称
+    <!-- Brand text in top bar center (hidden unless brand_name is configured) -->
+    <div id="brandBanner" class="hidden flex-1 text-center text-[13px] font-bold tracking-[0.12em] select-none" style="color: var(--theme-primary); opacity: 0.4;">
     </div>
     <div class="flex items-center gap-6">
         <button id="langLabel" onclick="toggleLanguage()" title="切换语言"
@@ -427,6 +426,27 @@ setTimeout(function(){
                 </div>
             </section>
 
+            <!-- CARD: Logout -->
+            <section class="bg-[#1f1f22] rounded-3xl p-8 border border-outline-variant/10 shadow-2xl relative">
+                <div class="flex items-center gap-3 mb-6">
+                    <span class="material-symbols-outlined" style="color: var(--theme-primary);">logout</span>
+                    <h3 class="text-on-surface font-semibold tracking-tight">账户管理</h3>
+                </div>
+                <div class="space-y-3">
+                    <div id="userInfoDisplay" class="text-xs text-on-surface-variant">
+                        <span id="currentUsernameDisplay" class="font-bold text-on-surface"></span>
+                    </div>
+                    <button onclick="handleLogout()" class="bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20 font-bold py-3 px-5 rounded-xl text-sm transition-all active:scale-95 flex items-center gap-2">
+                        <span class="material-symbols-outlined text-[18px]">logout</span>
+                        退出登录（清除本地 Token）
+                    </button>
+                    <p class="text-[10px] text-on-surface-variant/50 leading-relaxed">
+                        登出后当前 token 会被服务端废弃，同时清除浏览器中的本地 Token 缓存。
+                        再次使用需要重新登录。
+                    </p>
+                </div>
+            </section>
+
             <!-- Save Changes Button -->
             <div class="flex justify-end pt-4">
                 <button onclick="saveSettings()" class="bg-[#e8a849] hover:bg-[#ffc676] text-[#452b00] px-8 py-4 rounded-xl font-bold flex items-center gap-3 shadow-[0_8px_24px_-4px_rgba(232,168,73,0.3)] transition-all active:scale-95 group">
@@ -669,7 +689,7 @@ setTimeout(function(){
 
             <div id="registerForm" class="w-full space-y-4 hidden">
                 <input id="regUsername" type="text" class="w-full bg-surface-container-lowest border border-outline-variant rounded-xl px-5 py-4 text-center text-base text-on-surface placeholder:text-outline/50 focus:ring-2 focus:ring-primary/30 focus:border-primary outline-none" placeholder="你的真实姓名（实名）">
-                <input id="regPassword" type="password" class="w-full bg-surface-container-lowest border border-outline-variant rounded-xl px-5 py-4 text-center text-base text-on-surface placeholder:text-outline/50 focus:ring-2 focus:ring-primary/30 focus:border-primary outline-none" placeholder="设置密码（至少4位）">
+                <input id="regPassword" type="password" class="w-full bg-surface-container-lowest border border-outline-variant rounded-xl px-5 py-4 text-center text-base text-on-surface placeholder:text-outline/50 focus:ring-2 focus:ring-primary/30 focus:border-primary outline-none" placeholder="设置密码（至少8位）">
                 <input id="regPasswordConfirm" type="password" class="w-full bg-surface-container-lowest border border-outline-variant rounded-xl px-5 py-4 text-center text-base text-on-surface placeholder:text-outline/50 focus:ring-2 focus:ring-primary/30 focus:border-primary outline-none" placeholder="确认密码" onkeydown="if(event.key==='Enter')submitRegister()">
                 <button onclick="submitRegister()" class="w-full bg-[#e8a849] hover:bg-[#ffc676] text-[#452b00] font-bold py-4 px-6 rounded-xl text-base transition-all active:scale-95 shadow-lg shadow-[#e8a849]/20">注 册</button>
                 <p id="regError" class="text-sm text-red-400 hidden text-center font-medium"></p>

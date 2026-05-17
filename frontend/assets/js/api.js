@@ -63,8 +63,17 @@ export async function apiRegister(username, password) {
         body: JSON.stringify({ username, password }),
     });
     const data = await resp.json();
-    if (!resp.ok) throw new Error(data.detail || '注册失败');
+    if (!resp.ok) throw new Error(data.detail || data.error || '注册失败');
     return data;
+}
+
+export async function apiLogout() {
+    // 即使服务端不可用也不抛异常——确保客户端总能清理
+    try {
+        await apiFetch('/api/auth/logout', { method: 'POST' });
+    } catch {
+        // 网络错误/服务端已关：静默处理，客户端继续清理
+    }
 }
 
 export async function apiFetch(url, options = {}) {
@@ -103,6 +112,17 @@ export function showAuthModal() {
 export function hideAuthModal() {
     const modal = document.getElementById('authModal');
     if (modal) modal.classList.add('hidden');
+}
+
+export async function handleLogout() {
+    if (!confirm('确认退出登录？')) return;
+    await apiLogout();
+    // 无论服务端是否成功，都清理本地缓存
+    localStorage.removeItem('hermes_webui_token');
+    localStorage.removeItem('hermes_webui_username');
+    localStorage.removeItem('hermes_webui_last_activity');
+    showToast('已登出', 'success');
+    location.reload();
 }
 
 export function showLoginForm() {
@@ -146,17 +166,14 @@ export async function submitRegister() {
     const confirm = document.getElementById('regPasswordConfirm').value;
     const errEl = document.getElementById('regError');
     if (!username) { errEl.textContent = '请输入真实姓名'; errEl.classList.remove('hidden'); return; }
-    if (password.length < 4) { errEl.textContent = '密码至少4位'; errEl.classList.remove('hidden'); return; }
+    if (password.length < 8) { errEl.textContent = '密码至少8位'; errEl.classList.remove('hidden'); return; }
     if (password !== confirm) { errEl.textContent = '两次密码不一致'; errEl.classList.remove('hidden'); return; }
     try {
         const result = await apiRegister(username, password);
         setAuthToken(result.token);
         setAuthUsername(result.username);
-        // 注册成功，自动切换到登录页让用户手动登录
-        showLoginForm();
-        document.getElementById('loginUsername').value = username;
-        document.getElementById('loginPassword').value = '';
-        document.getElementById('loginPassword').focus();
+        // 注册成功，直接进入主界面
+        location.reload();
     } catch (e) {
         errEl.textContent = e.message;
         errEl.classList.remove('hidden');
@@ -373,6 +390,8 @@ window.showRegisterForm = showRegisterForm;
 App.showRegisterForm = showRegisterForm;
 window.submitAuthToken = submitAuthToken;
 App.submitAuthToken = submitAuthToken;
+window.handleLogout = handleLogout;
+App.handleLogout = handleLogout;
 window.getPersona = getPersona;
 App.getPersona = getPersona;
 window.updatePersona = updatePersona;

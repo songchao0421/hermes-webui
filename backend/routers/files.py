@@ -13,6 +13,7 @@ from fastapi.responses import FileResponse, JSONResponse
 
 from config import get_upload_dir
 from user_auth import get_user_workspace
+from ratelimit import RateLimit
 
 logger = logging.getLogger(__name__)
 
@@ -85,7 +86,7 @@ async def list_files(request: Request):
 
 
 @router.get("/download/{source:path}/{filename:path}")
-async def download_file(source: str, filename: str, request: Request):
+async def download_file(source: str, filename: str, request: Request, _rate: None = Depends(RateLimit("60/minute"))):
     """Download a file. Admin can download any user's file."""
     username = getattr(request.state, "auth_user", None)
     if not username:
@@ -124,8 +125,8 @@ async def download_file(source: str, filename: str, request: Request):
         media_type = "application/octet-stream"
 
     from audit import audit_file_download
-    forwarded = request.headers.get("X-Forwarded-For")
-    ip = forwarded.split(",")[0].strip() if forwarded else (request.client.host if request.client else None)
+    from config import resolve_client_ip
+    ip = resolve_client_ip(request)
     audit_file_download(username, filename, source, ip)
 
     return FileResponse(

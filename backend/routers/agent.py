@@ -18,6 +18,7 @@ from fastapi.responses import JSONResponse
 
 from models import AgentRequest
 from config import get_upload_dir
+from ratelimit import RateLimit
 from _hermes_sdk_bridge import HermesSDKBridge
 from services.session_manager import (
     get_owner_of_session,
@@ -177,7 +178,7 @@ MAX_UPLOAD_SIZE = 200 * 1024 * 1024  # 200 MB
 # ---------------------------------------------------------------------------
 
 @router.post("/upload")
-async def agent_upload(file: UploadFile = File(...), request: Request = None):
+async def agent_upload(file: UploadFile = File(...), request: Request = None, _rate: None = Depends(RateLimit("10/minute"))):
     """Upload a file to be used as an attachment in the next agent message.
 
     Returns a file_id that can be passed to /api/agent/stream.
@@ -202,8 +203,8 @@ async def agent_upload(file: UploadFile = File(...), request: Request = None):
 
     # 审计日志
     user_id = _get_user_id(request) if request else "unknown"
-    forwarded = request.headers.get("X-Forwarded-For") if request else None
-    ip = forwarded.split(",")[0].strip() if forwarded else (request.client.host if request and request.client else None)
+    from config import resolve_client_ip
+    ip = resolve_client_ip(request) if request else "unknown"
     from audit import audit_file_upload
     audit_file_upload(user_id, file.filename or "file", len(content), ip)
 
@@ -216,7 +217,7 @@ async def agent_upload(file: UploadFile = File(...), request: Request = None):
 
 
 @router.post("/attachments")
-async def agent_attachments(files: list[UploadFile] = File(...), request: Request = None):
+async def agent_attachments(files: list[UploadFile] = File(...), request: Request = None, _rate: None = Depends(RateLimit("5/minute"))):
     """Upload multiple files at once. Returns list of file_id entries.
     Max per-file size: 200 MB.
     """
@@ -224,8 +225,8 @@ async def agent_attachments(files: list[UploadFile] = File(...), request: Reques
     upload_dir.mkdir(parents=True, exist_ok=True)
 
     user_id = _get_user_id(request) if request else "unknown"
-    forwarded = request.headers.get("X-Forwarded-For") if request else None
-    ip = forwarded.split(",")[0].strip() if forwarded else (request.client.host if request and request.client else None)
+    from config import resolve_client_ip
+    ip = resolve_client_ip(request) if request else "unknown"
 
     results = []
     for f in files:

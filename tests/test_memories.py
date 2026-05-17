@@ -61,4 +61,7 @@ class TestSkills:
         assert resp.status_code == 200
         data = resp.json()
         assert "skills" in data
-        assert isinstance(data["skills"], list)
+        assert isinstance(data["skills"], dict)
+        assert "system" in data["skills"]
+        assert "installed" in data["skills"]
+        assert "custom" in data["skills"]

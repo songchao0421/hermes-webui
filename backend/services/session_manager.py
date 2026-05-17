@@ -112,7 +112,7 @@ def _get_or_create_encryption_key() -> bytes:
     try:
         ENCRYPTION_KEY_FILE.chmod(0o600)
     except OSError:
-        pass
+        logger.warning("无法设置加密密钥文件权限为 600（非 POSIX 系统属正常情况）: %s", ENCRYPTION_KEY_FILE)
     return key
 
 

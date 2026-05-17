@@ -3,16 +3,21 @@ Hermes WebUI - Backend Server
 WebUI for Hermes Agent — graphical cockpit for the Hermes CLI.
 Architecture: FastAPI assembly with SDK-direct agent bridge.
 """
-import os, logging, asyncio
+import os, sys, logging, asyncio
 from pathlib import Path
 from contextlib import asynccontextmanager
+
+# Ensure backend/ is on sys.path for -m and direct script execution
+_backend_dir = str(Path(__file__).resolve().parent)
+if _backend_dir not in sys.path:
+    sys.path.insert(0, _backend_dir)
 
 import uvicorn
 from fastapi import FastAPI, Request, Depends
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 
-from auth import require_auth, is_auth_enabled
+from auth import require_auth, is_auth_enabled, check_token_file_permissions
 from config import load_config, get_upload_dir, ensure_dirs, PROJECT_ROOT, get_sessions_dir, get_memory_snapshots_dir
 from ratelimit import RateLimitExceeded, rate_limit_exceeded_handler
 from services.static_files import NoCacheStaticFiles
@@ -23,6 +28,7 @@ from services.session_manager import (
     get_sessions_for_user,
     get_owner_of_session,
     set_session_owner,
+    remove_session_owner,
 )
 
 logger = logging.getLogger(__name__)
@@ -55,6 +61,13 @@ async def lifespan(app: FastAPI):
     """Startup: load sessions. Shutdown: persist sessions."""
     ensure_dirs(); UPLOAD_TMP.mkdir(parents=True, exist_ok=True)
     load_all_sessions()
+
+    # ── Token file permission check ──
+    if is_auth_enabled():
+        perm_info = check_token_file_permissions()
+        if not perm_info["secure"]:
+            for w in perm_info["warnings"]:
+                logger.warning("[AUTH] %s", w)
 
     # ── Inject globals into routers ──
     import routers.system as _sys

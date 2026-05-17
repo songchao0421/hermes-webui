@@ -40,7 +40,7 @@ ALLOWED_AVATAR_TYPES = {
     "image/jpeg": "jpg",
     "image/gif": "gif",
     "image/webp": "webp",
-    "image/svg+xml": "svg",
+    # SVG 已移除（XSS 风险 —— SVG 可内嵌 <script> 和 JavaScript URL）
 }
 
 MAX_AVATAR_SIZE = 5 * 1024 * 1024

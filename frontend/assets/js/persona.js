@@ -6,7 +6,7 @@
 globalThis.App = globalThis.App || {};
 const App = globalThis.App;
 
-import { apiFetch, apiUrl } from './api.js';
+import { apiFetch, apiUrl, getAuthUsername } from './api.js';
 import { state } from './state.js';
 import { escapeHtml, showToast } from './utils.js';
 import { applyThemeColor } from './theme.js';
@@ -51,6 +51,17 @@ export function updateUIFromPersona() {
     document.getElementById('navAgentSub').textContent = sub;
     document.title = `${name} | Hermes WebUI`;
 
+    // 品牌名称：只有明确配置才显示（否则隐藏）
+    const brandBanner = document.getElementById('brandBanner');
+    if (brandBanner) {
+        if (p.brand_name) {
+            brandBanner.textContent = p.brand_name;
+            brandBanner.classList.remove('hidden');
+        } else {
+            brandBanner.classList.add('hidden');
+        }
+    }
+
     // Sidebar avatar (80px version)
     const navAvatar = document.getElementById('navAvatar');
     navAvatar.innerHTML = '';
@@ -75,6 +86,10 @@ export function updateUIFromPersona() {
     if (nameField) nameField.value = p.agent_name || '';
     const subField = document.getElementById('settingsSubtitle');
     if (subField) subField.value = p.agent_subtitle || '';
+
+    // User info display in account management section
+    const usernameEl = document.getElementById('currentUsernameDisplay');
+    if (usernameEl) usernameEl.textContent = '当前用户：' + escapeHtml(getAuthUsername());
 
     // Settings avatar zone
     const settingsZone = document.getElementById('settingsAvatarZone');

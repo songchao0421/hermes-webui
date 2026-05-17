@@ -1,4 +1,5 @@
 @echo off
+setlocal enabledelayedexpansion
 title Hermes WebUI
 
 set "SCRIPT_DIR=%~dp0"
@@ -9,7 +10,7 @@ set "OLLAMA_URL="
 
 echo.
 echo ============================================
-echo    Hermes WebUI  v2.0.0
+echo    Hermes WebUI  v2.3.1
 echo ============================================
 echo.
 
@@ -26,18 +27,10 @@ if %errorlevel% neq 0 (
 echo     OK: WSL2 available
 
 :: ============================================
-:: Step 2: Detect WSL distro (display only)
+:: Step 2: Convert project path to WSL path
 :: ============================================
 echo.
-echo [2/6] Detecting WSL distribution...
-echo     Default distro:
-wsl -- bash -c "echo '    ' $WSL_DISTRO_NAME"
-
-:: ============================================
-:: Step 3: Convert project path
-:: ============================================
-echo.
-echo [3/6] Mapping project path to WSL...
+echo [2/6] Mapping project path to WSL...
 set "WSL_PROJECT="
 for /f "tokens=*" %%P in ('wsl -- wslpath -u "%PROJECT_DIR:\=/%" 2^>nul') do set "WSL_PROJECT=%%P"
 if not defined WSL_PROJECT (
@@ -47,136 +40,118 @@ if not defined WSL_PROJECT (
 echo     OK: %WSL_PROJECT%
 
 :: ============================================
-:: Step 4: Smart Ollama Detection
-:: Priority:
-::   A. Ollama in WSL2 (localhost directly)
-::   B. Ollama on Windows + WSL2 mirrored mode
-::   C. Ollama on Windows + NAT mode (find host IP)
-::   D. Not found -> start without AI, show guide
+:: Step 3: Detect Ollama (for AI features)
 :: ============================================
 echo.
-echo [4/6] Detecting Ollama...
+echo [3/6] Detecting Ollama...
 
-:: A. Check if WSL2 can already reach localhost:11434 (WSL Ollama or mirrored mode)
+:: Check if WSL2 can reach localhost:11434 directly
 wsl -- bash -lc "curl -s http://localhost:11434/api/tags >/dev/null 2>&1"
 if %errorlevel% equ 0 (
     set "OLLAMA_URL=http://localhost:11434"
-    echo     OK: Ollama reachable at localhost:11434 ^(WSL2 direct^)
-    goto :check_hermes
+    echo     OK: Ollama at localhost:11434 (WSL2 direct)
+    goto :setup_venv
 )
 
-:: B. Check if Ollama is running on Windows
+:: Check if Ollama is running on Windows host
 curl -s http://localhost:11434/api/tags >nul 2>&1
 if %errorlevel% equ 0 (
-    echo     Ollama running on Windows ^(NAT mode — finding host IP...^)
-
-    :: Try to get Windows host IP via PowerShell (more reliable than awk in batch)
-    set "WIN_IP="
-    for /f "tokens=*" %%H in ('powershell -NoProfile -Command "(Get-NetRoute -DestinationPrefix 0.0.0.0/0 | Sort-Object RouteMetric | Select-Object -First 1).NextHop" 2^>nul') do (
+    echo     Ollama running on Windows (NAT mode)
+    for /f "tokens=*" %%H in ('powershell -NoProfile -Command "(Get-NetRoute -DestinationPrefix 0.0.0.0/0 ^| Sort-Object RouteMetric ^| Select-Object -First 1).NextHop" 2^>nul') do (
         if not defined WIN_IP set "WIN_IP=%%H"
     )
-    :: Fallback: try WSL default gateway
     if not defined WIN_IP (
-        for /f "tokens=3" %%G in ('wsl -- bash -c "ip route show default 2^>/dev/null" ^| findstr /i "default"') do (
+        for /f "tokens=3" %%G in ('wsl -- bash -c "ip route show default 2>/dev/null" ^| findstr /i "default"') do (
             if not defined WIN_IP set "WIN_IP=%%G"
         )
     )
-
-    :: Validate WIN_IP is a real IP (not whitespace/garbage)
     if defined WIN_IP (
         echo %WIN_IP%| findstr /r "[0-9]" >nul 2>&1 || set "WIN_IP="
     )
-    :: Verify the IP actually reaches Ollama
     if defined WIN_IP (
-        wsl -- bash -lc "curl -s http://%WIN_IP%:11434/api/tags >/dev/null 2>&1"
-        if %errorlevel% equ 0 (
-            set "OLLAMA_URL=http://%WIN_IP%:11434"
-            echo     OK: Ollama reachable at %WIN_IP%:11434
-            goto :check_hermes
+        wsl -- bash -lc "curl -s http://!WIN_IP!:11434/api/tags >/dev/null 2>&1"
+        if !errorlevel! equ 0 (
+            set "OLLAMA_URL=http://!WIN_IP!:11434"
+            echo     OK: Ollama at !WIN_IP!:11434
+            goto :setup_venv
         )
     )
-
-    :: Host IP didn't work — suggest mirrored networking
-    echo     -------------------------------------------------------
-    echo     Ollama is running on Windows but WSL2 cannot reach it.
-    echo     RECOMMENDED FIX: Enable WSL2 mirrored networking.
-    echo.
-    echo     1. Open Notepad and create this file:
-    echo        %USERPROFILE%\.wslconfig
-    echo     2. Paste this content and save:
-    echo        [wsl2]
-    echo        networkingMode=mirrored
-    echo     3. Run in PowerShell: wsl --shutdown
-    echo     4. Re-launch this script.
-    echo     -------------------------------------------------------
-    echo.
-    echo     Starting WITHOUT Ollama for now ^(memory/skills still work^).
-    set "OLLAMA_URL=http://localhost:11434"
-    goto :check_hermes
-)
-
-:: D. Ollama not found anywhere
-echo     Ollama not detected.
-echo     -------------------------------------------------------
-echo     To enable AI chat, install Ollama:
-echo       https://ollama.com/download
-echo     After installing, pull a model:
-echo       ollama pull qwen2.5:7b     ^(recommended, 4.7GB^)
-echo       ollama pull gemma3:4b      ^(lighter, 3.3GB^)
-echo     Then re-launch this script.
-echo     -------------------------------------------------------
-echo     Starting in limited mode ^(memory editor / skills browser work^).
-set "OLLAMA_URL=http://localhost:11434"
-
-:: ============================================
-:: Step 5: Check Hermes SDK
-:: ============================================
-:check_hermes
-echo.
-echo [5/6] Checking Hermes SDK...
-wsl -- bash -lc "python3 -c 'from run_agent import AIAgent; print(\"OK\")' 2>/dev/null || python3 -c 'from hermes_agent.run_agent import AIAgent; print(\"OK\")' 2>/dev/null"
-if %errorlevel% equ 0 (
-    echo     OK: Hermes SDK ready
+    echo     WARNING: Ollama on Windows but not reachable from WSL.
+    echo     Starting in limited mode. To fix, add to %%USERPROFILE%%\.wslconfig:
+    echo       [wsl2]
+    echo       networkingMode=mirrored
+    echo     Then: wsl --shutdown  and  relaunch
 ) else (
-    echo     Hermes SDK not found. Installing...
-    wsl -- bash -lc "pip3 install hermes-agent --user -q --break-system-packages -i https://pypi.tuna.tsinghua.edu.cn/simple 2>/dev/null || pip3 install hermes-agent --user -q --break-system-packages"
-    if %errorlevel% equ 0 ( echo     OK: Hermes SDK installed ) else (
-        echo     WARNING: Install failed. Agent mode limited.
-    )
+    :: Ollama not found
+    echo     Not detected (AI chat disabled)
+    echo     Install from https://ollama.com/download then pull a model.
+    echo     Starting in limited mode (memory editor / skills browser).
 )
 
 :: ============================================
-:: Step 6: Find port
+:: Step 4: Set up Python virtual environment
+:: ============================================
+:setup_venv
+echo.
+echo [4/6] Setting up Python virtual environment...
+wsl -- bash -lc "cd '%WSL_PROJECT%' && (python3 -m venv venv 2>/dev/null && echo 'venv created') || echo 'venv already exists'"
+
+:: ============================================
+:: Step 5: Install/verify dependencies
 :: ============================================
 echo.
-echo [6/6] Finding port...
+echo [5/6] Installing Python dependencies...
+wsl -- bash -lc "cd '%WSL_PROJECT%' && ./venv/bin/pip install -r backend/requirements.txt -q 2>&1"
+if %errorlevel% equ 0 (
+    echo     OK: Dependencies installed
+) else (
+    echo     WARNING: Some deps may be missing, trying pip3...
+    wsl -- bash -lc "cd '%WSL_PROJECT%' && ./venv/bin/pip3 install -r backend/requirements.txt -q 2>&1"
+)
+
+:: ============================================
+:: Step 6: Find available port
+:: ============================================
+echo.
+echo [6/6] Finding available port...
 set PORT=8080
-netstat -ano 2>nul | findstr ":8080 " | findstr "LISTENING" >nul && set PORT=8081
-netstat -ano 2>nul | findstr ":8081 " | findstr "LISTENING" >nul && set PORT=8082
-netstat -ano 2>nul | findstr ":8082 " | findstr "LISTENING" >nul && set PORT=8083
+:checkport
+netstat -ano 2>nul | findstr ":%PORT% " | findstr "LISTENING" >nul 2>&1
+if %errorlevel% equ 0 (
+    set /a PORT=PORT+1
+    if %PORT% gtr 8090 (
+        echo     ERROR: All ports 8080-8090 are busy.
+        pause & exit /b 1
+    )
+    goto checkport
+)
 echo     OK: Port %PORT%
 
 :: ============================================
-:: Install deps + Launch
+:: Launch
 :: ============================================
 echo.
-echo Installing/verifying Python dependencies...
-wsl -- bash -lc "cd '%WSL_PROJECT%' && /usr/bin/pip3 install -r backend/requirements.txt -q --break-system-packages 2>/dev/null"
-if %errorlevel% equ 0 ( echo     OK ) else ( echo     WARNING: Some deps may be missing )
-
-echo.
 echo ============================================
-echo    Hermes WebUI  v2.0.0
+echo    Hermes WebUI  v2.3.1
 echo    Ollama : %OLLAMA_URL%
 echo    Open   : http://localhost:%PORT%
-echo    Ctrl+C to stop
 echo ============================================
 echo.
 
+:: Auto-open browser after 3 seconds
 start "" cmd /c "timeout /t 3 /nobreak >nul && start http://localhost:%PORT%"
 
-wsl -- bash -lc "cd '%WSL_PROJECT%' && OLLAMA_BASE_URL='%OLLAMA_URL%' /usr/bin/python3 backend/app.py --no-auth --host 0.0.0.0 --port %PORT% --wsl-mode"
+:: Launch the Python backend in WSL
+wsl -- bash -lc "cd '%WSL_PROJECT%' && OLLAMA_BASE_URL='%OLLAMA_URL%' ./venv/bin/python backend/app.py --no-auth --host 0.0.0.0 --port %PORT% --wsl-mode"
 
+if %errorlevel% neq 0 (
+    echo.
+    echo     ERROR: Python server failed to start (exit code: %errorlevel%)
+    pause
+    exit /b 1
+)
+
+:: If we get here, the user pressed Ctrl+C
 echo.
 echo Server stopped.
 pause

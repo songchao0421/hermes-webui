@@ -5,6 +5,11 @@ Replaces the old slowapi Limiter._dependency() pattern which was removed in slow
 Provides fastapi.Depends-compatible callables for per-route rate limiting using the 
 limits library directly (no dependency on slowapi's internal API).
 
+X-Forwarded-For 安全说明:
+  默认情况下（TRUSTED_PROXIES 为空），X-Forwarded-For 被忽略。
+  仅在可信代理列表非空时信任此头部。
+  这是为了防止客户端伪造 X-Forwarded-For 绕过速率限制。
+
 Usage:
     from ratelimit import RateLimit, RateLimitExceeded
 
@@ -42,7 +47,7 @@ async def rate_limit_exceeded_handler(request: Request, exc: RateLimitExceeded) 
     """FastAPI exception handler for RateLimitExceeded."""
     return JSONResponse(
         status_code=429,
-        content={"error": str(exc)},
+        content={"detail": str(exc)},
         headers={"Retry-After": "60"},
     )
 
@@ -89,13 +94,21 @@ def _is_disabled() -> bool:
     return not _enabled
 
 def _client_ip(request: Request) -> str:
-    """Extract client IP from request, handling proxies."""
+    """Extract client IP from request, handling proxies.
+
+    X-Forwarded-For 只在直连 IP 属于可信代理时才被信任，
+    否则忽略（防止伪造 IP 绕过速率限制）。
+    """
+    direct_ip = request.client.host if request.client else "unknown"
+
     forwarded = request.headers.get("X-Forwarded-For")
-    if forwarded:
-        return forwarded.split(",")[0].strip()
-    if request.client:
-        return request.client.host or "unknown"
-    return "unknown"
+    if forwarded and direct_ip != "unknown":
+        from config import get_trusted_proxies
+        trusted = get_trusted_proxies()
+        if trusted and direct_ip in trusted:
+            return forwarded.split(",")[0].strip()
+
+    return direct_ip
 
 
 # ── Pre-built limit callables (for convenience) ────────────────────

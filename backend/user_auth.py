@@ -29,9 +29,15 @@ WORKSPACE_ROOT = Path.home() / "Shared" / "员工工作区"
 # ── 安全参数 ─────────────────────────────────────────────────────────
 MAX_LOGIN_ATTEMPTS = 5          # 最大失败次数
 LOCKOUT_DURATION_SEC = 15 * 60  # 锁定时间（秒）
-MIN_PASSWORD_LENGTH = 8         # 最小密码长度（从6提升到8）
+MIN_PASSWORD_LENGTH = 8         # 最小密码长度
+PASSWORD_HISTORY_SIZE = 5       # 密码历史保留条数（禁止循环复用）
 PASSWORD_EXPIRE_DAYS = 90       # 密码过期天数
 TOKEN_TTL_SEC = 2 * 3600        # Token 有效期（2 小时）
+
+# ── 特性开关 ─────────────────────────────────────────────────────────
+# 注册功能默认开放（内网场景）。如需关闭:
+#   export HERMES_REGISTRATION_ENABLED=false
+REGISTRATION_ENABLED = os.environ.get("HERMES_REGISTRATION_ENABLED", "true").lower() in ("1", "true", "yes")
 
 
 def _ensure_dirs():
@@ -58,7 +64,7 @@ def _save_users(users: dict):
     try:
         USERS_FILE.chmod(0o600)
     except OSError:
-        pass
+        logger.warning("无法设置用户文件权限为 600（非 POSIX 系统属正常情况）: %s", USERS_FILE)
 
 
 # ── 密码哈希 (bcrypt) ────────────────────────────────────────────────
@@ -127,6 +133,9 @@ def _reset_login_failures(user_data: dict):
 
 def register_user(username: str, password: str) -> dict:
     """Register a new user. Returns {success, message, workspace?}"""
+    # ── 注册开关检查 ──
+    if not REGISTRATION_ENABLED:
+        return {"success": False, "message": "注册功能未开放，请联系管理员添加账号"}
     _ensure_dirs()
     users = _load_users()
 
@@ -247,17 +256,43 @@ def login_user(username: str, password: str) -> dict:
     return result
 
 
+# ── 登出 ───────────────────────────────────────────────────────────────
+
+def logout_user(username: str) -> dict:
+    """服务端登出：清除当前 token，强制该设备下线。
+
+    注意：只清除当前 token，不影响后续登录生成的新 token。
+    如果用户在其他设备上也有登录，其他设备的 token 仍有效。
+    """
+    users = _load_users()
+    if username not in users:
+        return {"success": False, "message": "用户不存在"}
+    if not users[username].get("enabled", True):
+        users[username]["token"] = ""
+        users[username]["token_issued_at"] = 0
+        _save_users(users)
+        return {"success": True, "message": "已登出"}
+
+    users[username]["token"] = ""
+    users[username]["token_issued_at"] = 0
+    _save_users(users)
+    logger.info("用户登出: %s", username)
+    return {"success": True, "message": "已登出"}
+
+
 def verify_token(token: str) -> Optional[str]:
     """Verify a token and return the username. Returns None if invalid.
 
     只验证启用中的账号。不检查 TTL（TTL 由 token 过期检查单独处理）。
     """
+    if not token:
+        return None
     users = _load_users()
-    for username, data in users.items():
-        if data.get("token") == token:
-            if not data.get("enabled", True):
-                return None
-            return username
+    # 反向索引：token → username（O(1) 查找替代 O(n) 扫描）
+    token_index = {data.get("token"): username for username, data in users.items() if data.get("token")}
+    username = token_index.get(token)
+    if username and users[username].get("enabled", True):
+        return username
     return None
 
 
@@ -269,10 +304,11 @@ def check_token_expired(token: str) -> bool:
     if not token:
         return True
     users = _load_users()
-    for username, data in users.items():
-        if data.get("token") == token:
-            last_active = data.get("last_active_at", 0)
-            return (time.time() - last_active) >= TOKEN_TTL_SEC
+    token_index = {data.get("token"): username for username, data in users.items() if data.get("token")}
+    username = token_index.get(token)
+    if username:
+        last_active = users[username].get("last_active_at", 0)
+        return (time.time() - last_active) >= TOKEN_TTL_SEC
     return True
 
 
@@ -281,11 +317,11 @@ def renew_token_activity(token: str):
     if not token:
         return
     users = _load_users()
-    for username, data in users.items():
-        if data.get("token") == token:
-            data["last_active_at"] = time.time()
-            _save_users(users)
-            return
+    token_index = {data.get("token"): username for username, data in users.items() if data.get("token")}
+    username = token_index.get(token)
+    if username:
+        users[username]["last_active_at"] = time.time()
+        _save_users(users)
 
 
 def get_user_workspace(username: str) -> Optional[Path]:
@@ -318,18 +354,18 @@ def change_password(username: str, old_password: str, new_password: str) -> dict
     if not new_password or len(new_password) < MIN_PASSWORD_LENGTH:
         return {"success": False, "message": f"新密码至少{MIN_PASSWORD_LENGTH}位"}
 
-    # 密码历史检查：不能与最近 1 次相同
+    # 密码历史检查：不能与最近 PASSWORD_HISTORY_SIZE 次相同
     history = user_data.get("password_history", [])
     if history:
-        for old_hash in history[:1]:  # 只检查最近 1 次
+        for old_hash in history[:PASSWORD_HISTORY_SIZE]:
             if _verify_password(new_password, old_hash):
-                return {"success": False, "message": "新密码不能与最近使用的密码相同"}
+                return {"success": False, "message": f"新密码不能与最近{PASSWORD_HISTORY_SIZE}次使用的密码相同"}
 
     # 哈希新密码
     new_hash = _hash_password(new_password)
 
-    # 更新密码历史（只保留最近 1 次旧密码，加上新密码共 2 条）
-    user_data["password_history"] = ([user_data["password"]] + history)[:2]
+    # 更新密码历史（保留最近 PASSWORD_HISTORY_SIZE 条旧密码，加新密码共 PASSWORD_HISTORY_SIZE+1 条）
+    user_data["password_history"] = ([user_data["password"]] + history)[:PASSWORD_HISTORY_SIZE + 1]
     user_data["password"] = new_hash
     user_data["password_changed_at"] = time.time()
 
@@ -389,7 +425,7 @@ def admin_reset_password(username: str, new_password: str) -> dict:
     new_hash = _hash_password(new_password)
     # 更新密码历史（与 change_password 一致）
     history = users[username].get("password_history", [])
-    users[username]["password_history"] = ([users[username]["password"]] + history)[:2]
+    users[username]["password_history"] = ([users[username]["password"]] + history)[:PASSWORD_HISTORY_SIZE + 1]
     users[username]["password"] = new_hash
     users[username]["password_changed_at"] = time.time()
     users[username]["token"] = ""  # 清除 token，强制重新登录
